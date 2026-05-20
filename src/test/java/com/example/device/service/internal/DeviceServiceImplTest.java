@@ -38,7 +38,7 @@ class DeviceServiceImplTest {
         DeviceCreateRequest request = createDeviceCreateRequest("New Name", "New Brand", DeviceState.IN_USE);
         when(deviceRepository.save(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Device device = deviceService.createDevice(request);
+        deviceService.createDevice(request);
         verify(deviceRepository, times(1)).save(any(Device.class));
     }
 
@@ -46,9 +46,7 @@ class DeviceServiceImplTest {
     void createDevice_DeviceWithEmptyName_ShouldThrowException() {
         DeviceCreateRequest request = createDeviceCreateRequest("", "New Brand", DeviceState.INACTIVE);
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            deviceService.createDevice(request);
-        });
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> deviceService.createDevice(request));
 
         assertEquals("Device 'name' cannot be blank or null.", exception.getMessage());
         verify(deviceRepository, never()).save(any(Device.class));
@@ -58,9 +56,7 @@ class DeviceServiceImplTest {
     void createDevice_DeviceWithEmptyBrand_ShouldThrowException() {
         DeviceCreateRequest request = createDeviceCreateRequest("New Name", "", DeviceState.INACTIVE);
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            deviceService.createDevice(request);
-        });
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> deviceService.createDevice(request));
 
         assertEquals("Device 'brand' cannot be blank or null.", exception.getMessage());
         verify(deviceRepository, never()).save(any(Device.class));
@@ -70,9 +66,7 @@ class DeviceServiceImplTest {
     void createDevice_DeviceWithNullState_ShouldThrowException() {
         DeviceCreateRequest request = createDeviceCreateRequest("New Name", "New Brand", null);
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            deviceService.createDevice(request);
-        });
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> deviceService.createDevice(request));
 
         assertEquals("Device 'state' is required.", exception.getMessage());
         verify(deviceRepository, never()).save(any(Device.class));
@@ -128,9 +122,7 @@ class DeviceServiceImplTest {
 
         when(deviceRepository.findById(deviceId)).thenReturn(Optional.empty());
 
-        assertThrows(DeviceNotFoundException.class, () -> {
-            deviceService.updateDevice(deviceId, request);
-        });
+        assertThrows(DeviceNotFoundException.class, () -> deviceService.updateDevice(deviceId, request));
 
         verify(deviceRepository, never()).save(any(Device.class));
     }
@@ -144,9 +136,7 @@ class DeviceServiceImplTest {
 
         when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
 
-        BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> {
-            deviceService.updateDevice(deviceId, request);
-        });
+        BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> deviceService.updateDevice(deviceId, request));
 
         assertEquals("Device 'name' or 'brand' cannot be updated while the device is in use.", exception.getMessage());
         verify(deviceRepository, never()).save(any(Device.class));
@@ -161,9 +151,7 @@ class DeviceServiceImplTest {
 
         when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
 
-        BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> {
-            deviceService.updateDevice(deviceId, request);
-        });
+        BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> deviceService.updateDevice(deviceId, request));
 
         assertEquals("Device 'name' or 'brand' cannot be updated while the device is in use.", exception.getMessage());
         verify(deviceRepository, never()).save(any(Device.class));
@@ -187,9 +175,7 @@ class DeviceServiceImplTest {
 
         when(deviceRepository.findById(deviceId)).thenReturn(Optional.empty());
 
-        DeviceNotFoundException exception = assertThrows(DeviceNotFoundException.class, () -> {
-            deviceService.deleteDevice(deviceId);
-        });
+        DeviceNotFoundException exception = assertThrows(DeviceNotFoundException.class, () -> deviceService.deleteDevice(deviceId));
 
         assertEquals("Device not found with id: " + deviceId, exception.getMessage());
 
@@ -203,9 +189,7 @@ class DeviceServiceImplTest {
 
         when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
 
-        BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> {
-            deviceService.deleteDevice(deviceId);
-        });
+        BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> deviceService.deleteDevice(deviceId));
 
         assertEquals("Cannot delete device because it is currently in use.", exception.getMessage());
 
@@ -229,9 +213,7 @@ class DeviceServiceImplTest {
         UUID deviceId = UUID.randomUUID();
         when(deviceRepository.findById(deviceId)).thenReturn(Optional.empty());
 
-        DeviceNotFoundException exception = assertThrows(DeviceNotFoundException.class, () -> {
-            deviceService.findById(deviceId);
-        });
+        DeviceNotFoundException exception = assertThrows(DeviceNotFoundException.class, () -> deviceService.findById(deviceId));
 
         assertEquals("Device not found with id: " + deviceId, exception.getMessage());
 

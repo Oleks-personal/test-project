@@ -1,6 +1,9 @@
 package com.example.device.model;
 
+import com.example.device.errors.BusinessRuleViolationException;
+import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.*;
+import org.jspecify.annotations.NonNull;
 
 import java.time.OffsetDateTime;
 import java.util.Objects;
@@ -12,7 +15,7 @@ public class Device {
 
     @Id
     @Column(columnDefinition = "UUID")
-    private final UUID id = UUID.randomUUID();
+    private final UUID id = generateUUID();
 
     @Column(nullable = false)
     private String name;
@@ -37,20 +40,27 @@ public class Device {
     }
 
     public Device(String name, String brand, DeviceState state) {
+        validateProperties(name, brand, state);
+
         this.name = name;
         this.brand = brand;
         this.state = state;
     }
 
-    public boolean canBeDeleted() {
-        return this.state != DeviceState.IN_USE;
+    public void updateDetails(String newName, String newBrand, DeviceState newState) {
+        validateProperties(newName, newBrand, newState);
+
+        if (!this.canUpdateProperties(newName, newBrand)) {
+            throw new BusinessRuleViolationException("Device 'name' or 'brand' cannot be updated while the device is in use.");
+        }
+
+        this.name = newName;
+        this.brand = newBrand;
+        this.state = newState;
     }
 
-    public boolean canUpdateProperties(String newName, String newBrand) {
-        if (this.state == DeviceState.IN_USE) {
-            return Objects.equals(this.name, newName) && Objects.equals(this.brand, newBrand);
-        }
-        return true;
+    public boolean canBeDeleted() {
+        return this.state != DeviceState.IN_USE;
     }
 
     // Getters and Setters
@@ -62,28 +72,41 @@ public class Device {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public String getBrand() {
         return brand;
-    }
-
-    public void setBrand(String brand) {
-        this.brand = brand;
     }
 
     public DeviceState getState() {
         return state;
     }
 
-    public void setState(DeviceState state) {
-        this.state = state;
-    }
-
     public OffsetDateTime getCreationTime() {
         return creationTime;
+    }
+
+    protected @NonNull UUID generateUUID() {
+        return UUID.randomUUID();
+    }
+
+    private boolean canUpdateProperties(String newName, String newBrand) {
+        if (this.state == DeviceState.IN_USE) {
+            return Objects.equals(this.name, newName) && Objects.equals(this.brand, newBrand);
+        }
+        return true;
+    }
+
+    private void validateProperties(String newName, String newBrand, DeviceState newState) {
+        validateProperty("name", newName);
+        validateProperty("brand", newBrand);
+        if (newState == null) {
+            throw new IllegalArgumentException("Device 'state' is required.");
+        }
+    }
+
+    private void validateProperty(String fieldName, String value) {
+        if (StringUtils.isBlank(value)) {
+            throw new IllegalArgumentException("Device '" + fieldName + "' cannot be blank or null.");
+        }
     }
 
     @Override

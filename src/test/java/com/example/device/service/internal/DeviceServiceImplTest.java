@@ -88,7 +88,7 @@ class DeviceServiceImplTest {
                 eq(LockModeType.PESSIMISTIC_WRITE),
                 eq(Map.of(JAKARTA_PERSISTENCE_LOCK_TIMEOUT, PESSIMISTIC_LOCK_TIMEOUT_MS))
         )).thenReturn(existingDevice);
-        when(deviceRepository.save(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deviceRepository.saveAndFlush(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DeviceResponse result = deviceService.updateDevice(deviceId, request);
 
@@ -98,7 +98,7 @@ class DeviceServiceImplTest {
         assertEquals("New Brand", result.brand());
         assertEquals(DeviceState.IN_USE, result.state());
 
-        verify(deviceRepository, times(1)).save(existingDevice);
+        verify(deviceRepository, times(1)).saveAndFlush(existingDevice);
     }
 
     @Test
@@ -116,7 +116,7 @@ class DeviceServiceImplTest {
                 eq(LockModeType.PESSIMISTIC_WRITE),
                 eq(Map.of(JAKARTA_PERSISTENCE_LOCK_TIMEOUT, PESSIMISTIC_LOCK_TIMEOUT_MS))
         )).thenReturn(existingDevice);
-        when(deviceRepository.save(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deviceRepository.saveAndFlush(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DeviceResponse result = deviceService.updateDevice(deviceId, request);
 
@@ -126,7 +126,7 @@ class DeviceServiceImplTest {
         assertEquals("Old Brand", result.brand());
         assertEquals(DeviceState.INACTIVE, result.state());
 
-        verify(deviceRepository, times(1)).save(existingDevice);
+        verify(deviceRepository, times(1)).saveAndFlush(existingDevice);
     }
 
     @Test

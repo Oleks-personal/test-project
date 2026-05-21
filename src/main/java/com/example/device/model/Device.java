@@ -3,6 +3,7 @@ package com.example.device.model;
 import com.example.device.errors.BusinessRuleViolationException;
 import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.jspecify.annotations.NonNull;
 
 import java.time.OffsetDateTime;
@@ -26,8 +27,9 @@ public class Device {
     @Column(nullable = false)
     private String brand;
 
+    @JdbcTypeCode(org.hibernate.type.SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "device_state default 'AVAILABLE'")
+    @Column(nullable = false, columnDefinition = "device_state")
     private DeviceState state = DeviceState.AVAILABLE;
 
     @Column(

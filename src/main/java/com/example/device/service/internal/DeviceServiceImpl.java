@@ -65,7 +65,7 @@ class DeviceServiceImpl implements DeviceService {
 
         existingDevice.updateDetails(targetName, targetBrand, targetState);
 
-        Device device = deviceRepository.save(existingDevice);
+        Device device = deviceRepository.saveAndFlush(existingDevice);
         return transformToDto(device);
     }
 

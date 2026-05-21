@@ -8,7 +8,8 @@ import java.util.Optional;
 public record DeviceUpdateRequest(
         Optional<String> name,
         Optional<String> brand,
-        Optional<DeviceState> state
+        Optional<DeviceState> state,
+        long version
 ) {
     public String resolveName(Device existing) {
         return name != null && name.isPresent() ? name.get() : existing.getName();

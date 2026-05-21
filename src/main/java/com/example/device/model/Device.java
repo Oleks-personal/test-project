@@ -10,7 +10,10 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Entity
-@Table(name = "devices")
+@Table(name = "devices", indexes = {
+        @Index(name = "idx_devices_brand", columnList = "brand"),
+        @Index(name = "idx_devices_state", columnList = "state")
+})
 public class Device {
 
     @Id
@@ -24,7 +27,7 @@ public class Device {
     private String brand;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "device_state default 'available'")
+    @Column(nullable = false, columnDefinition = "device_state default 'AVAILABLE'")
     private DeviceState state = DeviceState.AVAILABLE;
 
     @Column(
@@ -35,6 +38,9 @@ public class Device {
             columnDefinition = "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"
     )
     private final OffsetDateTime creationTime = OffsetDateTime.now();
+
+    @Version
+    private Long version;
 
     protected Device() {
     }
@@ -82,6 +88,10 @@ public class Device {
 
     public OffsetDateTime getCreationTime() {
         return creationTime;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 
     protected @NonNull UUID generateUUID() {

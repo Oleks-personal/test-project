@@ -1,27 +1,26 @@
 package com.example.device.service;
 
-import com.example.device.model.Device;
 import com.example.device.model.DeviceState;
 import com.example.device.service.dto.DeviceCreateRequest;
+import com.example.device.service.dto.DeviceResponse;
 import com.example.device.service.dto.DeviceUpdateRequest;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface DeviceService {
-    Device updateDevice(UUID id, DeviceUpdateRequest updateRequest);
+    DeviceResponse updateDevice(UUID id, DeviceUpdateRequest updateRequest);
 
-    Device createDevice(DeviceCreateRequest deviceCreateRequest);
+    DeviceResponse createDevice(DeviceCreateRequest deviceCreateRequest);
 
     void deleteDevice(UUID id);
 
-    Device findById(UUID id);
+    DeviceResponse findById(UUID id);
 
-    List<Device> findByBrand(String brand);
+    Slice<DeviceResponse> findByBrand(String brand, Pageable pageRequest);
 
-    List<Device> findByState(DeviceState state);
+    Slice<DeviceResponse> findByState(DeviceState state, Pageable pageRequest);
 
-    Page<Device> findAll(PageRequest pageRequest);
+    Slice<DeviceResponse> findAll(Pageable pageRequest);
 }

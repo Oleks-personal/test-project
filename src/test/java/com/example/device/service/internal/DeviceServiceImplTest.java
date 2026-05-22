@@ -37,8 +37,6 @@ class DeviceServiceImplTest {
     private DeviceRepository deviceRepository;
     @Mock
     private DeviceFactory deviceFactory;
-    @Mock
-    private EntityManager entityManager;
     @InjectMocks
     private DeviceServiceImpl deviceService;
 

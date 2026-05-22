@@ -35,22 +35,22 @@ Task is to develop a REST API capable of persis and managing device resources.
 * Java 21+
 * Maven 3.9+ or Gradle 8+
 
-## Tips
-* Make sure to read all requirements, criteria and evalua:on items before starting.
-* Try to provide granular changes (e.g. commits) with comments and explanations on what is being changed.
-* Provide additional comments of future improvements and possible missing/malfunctioning
-parts of your implementation.
-* If you have ques:ons or any additional information is required, don't hesitate to ask us!
+## Build project
+To build project and execute unit and integration tests you can use following command:
+```bash
+./gradlew clean test bootJar
+```
 
-## Evaluation
-The solution will be evaluated as per the following criteria:
-* Implementation of all acceptance criteria.
-* Usage of well-known best practices and design patterns.
-* Code efficiency and general performance.
-* Additional features and production readiness of the overall solution.
+Unit test and jacoco reports is available here `build/reports`
 
-## Final Remarks
-* The project can either be delivered directly via email (zip file), or any remote repository
-provider such as GitHub, GitLab, etc. Just remember the deliverable must be a git repository.
-* Make sure no references to the 1GLOBAL brand are present in the project, especially if hosted
-on a public remote repository.
+`DeviceApplicationIT` this is integration test which use [Testcontainers](https://docs.spring.io/spring-boot/reference/testing/testcontainers.html)
+
+## Run application
+After successful build you can run application using docker compose with following command:
+ ```bash
+docker-compose up 
+```
+
+## Documentation
+
+Swagger documentation for API, available using following URL: http://localhost:8080/swagger-ui/index.html 

@@ -1,0 +1,31 @@
+services:
+
+  device-project:
+    image: 'device-project:latest'
+    build:
+      context: .
+    container_name: device-project
+    ports:
+      - "8080:8080"
+    depends_on:
+      - device-db-postgres
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://device-db-postgres:5432/device-db
+      - SPRING_DATASOURCE_USERNAME=device-user
+      - SPRING_DATASOURCE_PASSWORD=device-pass
+
+  device-db-postgres:
+    image: postgres:16.14-alpine
+    container_name: device-db-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=device-db
+      - POSTGRES_USER=device-user
+      - POSTGRES_PASSWORD=device-pass
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d device-db -U device-user"]
+      interval: 1s
+      timeout: 5s
+      retries: 10

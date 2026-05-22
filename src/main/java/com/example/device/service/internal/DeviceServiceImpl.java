@@ -9,28 +9,23 @@ import com.example.device.service.DeviceService;
 import com.example.device.service.dto.DeviceCreateRequest;
 import com.example.device.service.dto.DeviceResponse;
 import com.example.device.service.dto.DeviceUpdateRequest;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.ObjectUtils;
 
-import java.util.Map;
 import java.util.UUID;
 
 @Transactional
 @Service
 class DeviceServiceImpl implements DeviceService {
 
-    private final EntityManager entityManager;
     private final DeviceRepository deviceRepository;
     private final DeviceFactory deviceFactory;
-    static final int PESSIMISTIC_LOCK_TIMEOUT_MS = 3000;
-    static final String JAKARTA_PERSISTENCE_LOCK_TIMEOUT = "jakarta.persistence.lock.timeout";
 
-    DeviceServiceImpl(EntityManager entityManager, DeviceRepository deviceRepository, DeviceFactory deviceFactory) {
-        this.entityManager = entityManager;
+    DeviceServiceImpl(DeviceRepository deviceRepository, DeviceFactory deviceFactory) {
         this.deviceRepository = deviceRepository;
         this.deviceFactory = deviceFactory;
     }
@@ -44,25 +39,24 @@ class DeviceServiceImpl implements DeviceService {
 
     @Override
     public DeviceResponse updateDevice(UUID id, DeviceUpdateRequest updateRequest) {
-        Device existingDevice = entityManager.find(
-                Device.class,
-                id,
-                LockModeType.PESSIMISTIC_WRITE,
-                Map.of(JAKARTA_PERSISTENCE_LOCK_TIMEOUT, PESSIMISTIC_LOCK_TIMEOUT_MS)
-        );
-
-        if (existingDevice == null) {
-            throw new DeviceNotFoundException("Device not found with id: " + id);
-        }
+        Device existingDevice = deviceRepository.findById(id)
+                .orElseThrow(() -> new DeviceNotFoundException("Device not found with id: " + id));
 
         if (existingDevice.getVersion() != null && existingDevice.getVersion() > updateRequest.version()) {
-            return transformToDto(existingDevice);
+            boolean isIdempotentRetry = updateRequest.name().map(name -> ObjectUtils.nullSafeEquals(existingDevice.getName(), name)).orElse(true)
+                    && updateRequest.brand().map(brand -> ObjectUtils.nullSafeEquals(existingDevice.getBrand(), brand)).orElse(true)
+                    && updateRequest.state().map(state -> ObjectUtils.nullSafeEquals(existingDevice.getState(), state)).orElse(true);
+
+            if (isIdempotentRetry) {
+                return transformToDto(existingDevice);
+            }
+
+            throw new ObjectOptimisticLockingFailureException(Device.class, id);
         }
 
         String targetName = updateRequest.resolveName(existingDevice);
         String targetBrand = updateRequest.resolveBrand(existingDevice);
         DeviceState targetState = updateRequest.resolveState(existingDevice);
-
         existingDevice.updateDetails(targetName, targetBrand, targetState);
 
         Device device = deviceRepository.saveAndFlush(existingDevice);

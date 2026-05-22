@@ -9,7 +9,6 @@ import com.example.device.service.dto.DeviceCreateRequest;
 import com.example.device.service.dto.DeviceResponse;
 import com.example.device.service.dto.DeviceUpdateRequest;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -24,12 +24,9 @@ import org.springframework.data.domain.Slice;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import static com.example.device.service.internal.DeviceServiceImpl.JAKARTA_PERSISTENCE_LOCK_TIMEOUT;
-import static com.example.device.service.internal.DeviceServiceImpl.PESSIMISTIC_LOCK_TIMEOUT_MS;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -82,12 +79,7 @@ class DeviceServiceImplTest {
         Device existingDevice = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.AVAILABLE, version);
         DeviceUpdateRequest request = createDeviceUpdateRequest(Optional.of("New Name"), Optional.of("New Brand"), Optional.of(DeviceState.IN_USE), version);
 
-        when(entityManager.find(
-                eq(Device.class),
-                eq(deviceId),
-                eq(LockModeType.PESSIMISTIC_WRITE),
-                eq(Map.of(JAKARTA_PERSISTENCE_LOCK_TIMEOUT, PESSIMISTIC_LOCK_TIMEOUT_MS))
-        )).thenReturn(existingDevice);
+        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
         when(deviceRepository.saveAndFlush(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DeviceResponse result = deviceService.updateDevice(deviceId, request);
@@ -110,12 +102,7 @@ class DeviceServiceImplTest {
 
         DeviceUpdateRequest request = createDeviceUpdateRequest(Optional.of("Old Name"), Optional.of("Old Brand"), Optional.of(DeviceState.INACTIVE), version);
 
-        when(entityManager.find(
-                eq(Device.class),
-                eq(deviceId),
-                eq(LockModeType.PESSIMISTIC_WRITE),
-                eq(Map.of(JAKARTA_PERSISTENCE_LOCK_TIMEOUT, PESSIMISTIC_LOCK_TIMEOUT_MS))
-        )).thenReturn(existingDevice);
+        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
         when(deviceRepository.saveAndFlush(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DeviceResponse result = deviceService.updateDevice(deviceId, request);
@@ -136,12 +123,7 @@ class DeviceServiceImplTest {
 
         DeviceUpdateRequest request = createDeviceUpdateRequest(Optional.empty(), Optional.empty(), Optional.empty(), version);
 
-        when(entityManager.find(
-                eq(Device.class),
-                eq(deviceId),
-                eq(LockModeType.PESSIMISTIC_WRITE),
-                eq(Map.of(JAKARTA_PERSISTENCE_LOCK_TIMEOUT, PESSIMISTIC_LOCK_TIMEOUT_MS))
-        )).thenReturn(null);
+        when(deviceRepository.findById(deviceId)).thenReturn(Optional.empty());
 
         assertThrows(DeviceNotFoundException.class, () -> deviceService.updateDevice(deviceId, request));
 
@@ -157,12 +139,7 @@ class DeviceServiceImplTest {
 
         DeviceUpdateRequest request = createDeviceUpdateRequest(Optional.of("Illegal Name Change"), Optional.of("Old Brand"), Optional.of(DeviceState.IN_USE), version);
 
-        when(entityManager.find(
-                eq(Device.class),
-                eq(deviceId),
-                eq(LockModeType.PESSIMISTIC_WRITE),
-                eq(Map.of(JAKARTA_PERSISTENCE_LOCK_TIMEOUT, PESSIMISTIC_LOCK_TIMEOUT_MS))
-        )).thenReturn(existingDevice);
+        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
 
         BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> deviceService.updateDevice(deviceId, request));
 
@@ -178,12 +155,7 @@ class DeviceServiceImplTest {
         Device existingDevice = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.IN_USE, version);
         DeviceUpdateRequest request = createDeviceUpdateRequest(Optional.of("Old Name"), Optional.of("Illegal Brand Change"), Optional.of(DeviceState.IN_USE), version);
 
-        when(entityManager.find(
-                eq(Device.class),
-                eq(deviceId),
-                eq(LockModeType.PESSIMISTIC_WRITE),
-                eq(Map.of(JAKARTA_PERSISTENCE_LOCK_TIMEOUT, PESSIMISTIC_LOCK_TIMEOUT_MS))
-        )).thenReturn(existingDevice);
+        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
 
         BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> deviceService.updateDevice(deviceId, request));
 
@@ -192,8 +164,8 @@ class DeviceServiceImplTest {
     }
 
     @Test
-    @DisplayName("When request version is older than DB version, should skip update and return current state (Idempotency)")
-    void updateDevice_WhenVersionIsStale_ShouldReturnExistingDeviceWithoutSaving() {
+    @DisplayName("When request version is older than DB version, but request data the same as in DB, should skip update and return current state (Idempotency)")
+    void updateDevice_WhenVersionIsStale_ButDataTheSameAsInDB_ShouldReturnExistingDeviceWithoutSaving() {
         UUID deviceId = UUID.randomUUID();
         long databaseVersion = 5L;
         long staleClientVersion = 4L;
@@ -201,29 +173,44 @@ class DeviceServiceImplTest {
         Device existingDevice = createTestDevice(deviceId, "Current Name", "Current Brand", DeviceState.AVAILABLE, databaseVersion);
 
         DeviceUpdateRequest request = createDeviceUpdateRequest(
-                Optional.of("New Name"),
-                Optional.of("New Brand"),
-                Optional.of(DeviceState.IN_USE),
+                Optional.of("Current Name"),
+                Optional.of("Current Brand"),
+                Optional.of(DeviceState.AVAILABLE),
                 staleClientVersion
         );
 
-        // FIX: Mock the EntityManager instead of the Repository
-        when(entityManager.find(
-                eq(Device.class),
-                eq(deviceId),
-                eq(LockModeType.PESSIMISTIC_WRITE),
-                anyMap() // Matches the Map.of(...) configuration parameter smoothly
-        )).thenReturn(existingDevice);
+        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
 
-        // Act
         DeviceResponse result = deviceService.updateDevice(deviceId, request);
 
-        // Assert
         assertNotNull(result);
         assertEquals(databaseVersion, result.version());
         assertEquals("Current Name", result.name()); // Verifies the domain state was untouched
 
-        // Verify that the save method was never called
+        verify(deviceRepository, never()).save(any(Device.class));
+    }
+
+    @Test
+    @DisplayName("When request version is older than DB version, but request data not the same as in DB, should throw optimistic locking exception")
+    void updateDevice_WhenVersionIsStaleButDataNotTheSameAsInDB_ShouldThrowOptimisticLockingException() {
+        UUID deviceId = UUID.randomUUID();
+        long databaseVersion = 5L;
+        long staleClientVersion = 4L;
+
+        Device existingDevice = createTestDevice(deviceId, "Current Name", "Current Brand", DeviceState.AVAILABLE, databaseVersion);
+
+        DeviceUpdateRequest request = createDeviceUpdateRequest(
+                Optional.of("Another Name"),
+                Optional.of("Another Brand"),
+                Optional.of(DeviceState.AVAILABLE),
+                staleClientVersion
+        );
+
+        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
+
+        OptimisticLockingFailureException exception = assertThrows(OptimisticLockingFailureException.class, () -> deviceService.updateDevice(deviceId, request));
+        assertEquals("Object of class [com.example.device.model.Device] with identifier [" + deviceId + "]: optimistic locking failed", exception.getMessage());
+
         verify(deviceRepository, never()).save(any(Device.class));
     }
 

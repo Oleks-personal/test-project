@@ -3,28 +3,42 @@ package com.example.device.model;
 import com.example.device.errors.BusinessRuleViolationException;
 import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.*;
+import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
-import org.jspecify.annotations.NonNull;
 
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
 @Entity
-@Table(name = "devices", indexes = {
-        @Index(name = "idx_devices_brand", columnList = "brand"),
-        @Index(name = "idx_devices_state", columnList = "state")
-})
+@Table(
+        name = "devices",
+        indexes = {
+                @Index(name = "idx_devices_brand", columnList = "brand"),
+                @Index(name = "idx_devices_external_id", columnList = "external_id"),
+                @Index(name = "idx_devices_state", columnList = "state"),
+                @Index(name = "idx_devices_creation_time", columnList = "creation_time")
+        }
+)
 public class Device {
 
     @Id
-    @Column(columnDefinition = "UUID")
-    private final UUID id = generateUUID();
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Column(nullable = false)
+    @Column(
+            name = "external_id",
+            nullable = false,
+            unique = true,
+            updatable = false,
+            columnDefinition = "UUID"
+    )
+    private UUID externalId;
+
+    @Column(name = "name", nullable = false)
     private String name;
 
-    @Column(nullable = false)
+    @Column(name = "brand", nullable = false)
     private String brand;
 
     @JdbcTypeCode(org.hibernate.type.SqlTypes.NAMED_ENUM)
@@ -39,9 +53,10 @@ public class Device {
             updatable = false,
             columnDefinition = "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"
     )
-    private final OffsetDateTime creationTime = OffsetDateTime.now();
+    private OffsetDateTime creationTime;
 
     @Version
+    @Column(name = "version", nullable = false)
     private Long version;
 
     protected Device() {
@@ -49,7 +64,7 @@ public class Device {
 
     public Device(String name, String brand, DeviceState state) {
         validateProperties(name, brand, state);
-
+        this.externalId = UUID.randomUUID();
         this.name = name;
         this.brand = brand;
         this.state = state;
@@ -72,8 +87,12 @@ public class Device {
     }
 
     // Getters and Setters
-    public UUID getId() {
+    public Long getId() {
         return id;
+    }
+
+    public UUID getExternalId() {
+        return externalId;
     }
 
     public String getName() {
@@ -96,10 +115,6 @@ public class Device {
         return version;
     }
 
-    protected @NonNull UUID generateUUID() {
-        return UUID.randomUUID();
-    }
-
     private boolean canUpdateProperties(String newName, String newBrand) {
         if (this.state == DeviceState.IN_USE) {
             return Objects.equals(this.name, newName) && Objects.equals(this.brand, newBrand);
@@ -111,13 +126,13 @@ public class Device {
         validateProperty("name", newName);
         validateProperty("brand", newBrand);
         if (newState == null) {
-            throw new IllegalArgumentException("Device 'state' is required.");
+            throw new BusinessRuleViolationException("Device 'state' is required.");
         }
     }
 
     private void validateProperty(String fieldName, String value) {
         if (StringUtils.isBlank(value)) {
-            throw new IllegalArgumentException("Device '" + fieldName + "' cannot be blank or null.");
+            throw new BusinessRuleViolationException("Device '" + fieldName + "' cannot be blank or null.");
         }
     }
 
@@ -126,11 +141,24 @@ public class Device {
         if (this == o) return true;
         if (!(o instanceof Device other)) return false;
 
-        return Objects.equals(this.id, other.getId());
+        return Objects.equals(this.externalId, other.getExternalId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(id);
+        return Objects.hashCode(externalId);
+    }
+
+    @Override
+    public String toString() {
+        return new ToStringBuilder(this)
+                .append("id", id)
+                .append("externalId", externalId)
+                .append("name", name)
+                .append("brand", brand)
+                .append("state", state)
+                .append("creationTime", creationTime)
+                .append("version", version)
+                .toString();
     }
 }

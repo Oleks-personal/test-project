@@ -10,7 +10,7 @@ class DeviceTest {
 
     @Test
     @DisplayName("Test that IN_USE devices cannot be deleted.")
-    void deviceCannotBeDeletedIfDeviceInUse() {
+    void rejectsDeleteWhenInUse() {
         Device device = new Device("device name", "Super Brand", DeviceState.IN_USE);
         boolean result = device.canBeDeleted();
         assertFalse(result, "IN_USE devices cannot be deleted");
@@ -18,7 +18,7 @@ class DeviceTest {
 
     @Test
     @DisplayName("Test that devices can be deleted if it not in IN_USE state.")
-    void deviceCanBeDeletedIfDeviceNotInUse() {
+    void allowsDeleteWhenNotInUse() {
         Device device = new Device("device name", "Super Brand", DeviceState.INACTIVE);
         boolean result = device.canBeDeleted();
         assertTrue(result, "Device can be deleted if it not in IN_USE state");
@@ -26,7 +26,7 @@ class DeviceTest {
 
     @Test
     @DisplayName("Test that name and brand properties cannot be updated if the device is IN_USE.")
-    void deviceDetailsCannotBeUpdatedIfDeviceInUse() {
+    void rejectsNameOrBrandChangeWhenInUse() {
         Device device = new Device("device name", "Super Brand", DeviceState.IN_USE);
         BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> device.updateDetails("new device name", "Other Super Brand", DeviceState.AVAILABLE));
         assertEquals("Device 'name' or 'brand' cannot be updated while the device is in use.", exception.getMessage());
@@ -37,7 +37,7 @@ class DeviceTest {
 
     @Test
     @DisplayName("Test that device status can be updated if the device is IN_USE.")
-    void deviceStatusCanBeUpdatedIfDeviceInUse() {
+    void allowsStateChangeWhenInUse() {
         Device device = new Device("device name", "Super Brand", DeviceState.IN_USE);
         device.updateDetails("device name", "Super Brand", DeviceState.INACTIVE);
         assertEquals("device name", device.getName());
@@ -47,7 +47,7 @@ class DeviceTest {
 
     @Test
     @DisplayName("Test that name and brand properties can be updated if the device is not IN_USE.")
-    void deviceDetailsCannotBeUpdatedIfDeviceNotInUse() {
+    void allowsDetailsChangeWhenNotInUse() {
         Device device = new Device("Device name", "Super Brand", DeviceState.AVAILABLE);
         device.updateDetails("new device name", "Other Super Brand", DeviceState.IN_USE);
         assertEquals("new device name", device.getName());
@@ -57,42 +57,42 @@ class DeviceTest {
 
     @Test
     @DisplayName("Test that device cannot be updated if new device name is blank")
-    void deviceNameCannotBeUpdatedIfNewDeviceNameIsBlanc() {
+    void rejectsBlankName() {
         Device device = new Device("device name", "Super Brand", DeviceState.IN_USE);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> device.updateDetails("", "Other Super Brand", DeviceState.AVAILABLE));
+        BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> device.updateDetails("", "Other Super Brand", DeviceState.AVAILABLE));
         assertEquals("Device 'name' cannot be blank or null.", exception.getMessage());
     }
 
     @Test
     @DisplayName("Test that device cannot be updated if new device name is blank")
-    void deviceNameCannotBeUpdatedIfNewDeviceNameIsNull() {
+    void rejectsNullName() {
         Device device = new Device("device name", "Super Brand", DeviceState.IN_USE);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> device.updateDetails(null, "Other Super Brand", DeviceState.AVAILABLE));
+        BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> device.updateDetails(null, "Other Super Brand", DeviceState.AVAILABLE));
         assertEquals("Device 'name' cannot be blank or null.", exception.getMessage());
     }
 
     @Test
     @DisplayName("Test that device cannot be updated if new device brand is blank")
-    void deviceBrandCannotBeUpdatedIfNewDeviceNameIsBlanc() {
+    void rejectsBlankBrand() {
         Device device = new Device("device name", "Super Brand", DeviceState.IN_USE);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> device.updateDetails("new device name", "", DeviceState.AVAILABLE));
+        BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> device.updateDetails("new device name", "", DeviceState.AVAILABLE));
         assertEquals("Device 'brand' cannot be blank or null.", exception.getMessage());
     }
 
     @Test
     @DisplayName("Test that device cannot be updated if new device brand is null")
-    void deviceBrandCannotBeUpdatedIfNewDeviceBrandIsNull() {
+    void rejectsNullBrand() {
         Device device = new Device("device name", "Super Brand", DeviceState.IN_USE);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> device.updateDetails("new device name", null, DeviceState.AVAILABLE));
+        BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> device.updateDetails("new device name", null, DeviceState.AVAILABLE));
         assertEquals("Device 'brand' cannot be blank or null.", exception.getMessage());
     }
 
 
     @Test
     @DisplayName("Test that device cannot be updated if new device state is null")
-    void deviceStateCannotBeUpdatedIfNewDeviceStateIsNull() {
+    void rejectsNullState() {
         Device device = new Device("device name", "Super Brand", DeviceState.IN_USE);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> device.updateDetails("new device name", "Other Super Brand", null));
+        BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> device.updateDetails("new device name", "Other Super Brand", null));
         assertEquals("Device 'state' is required.", exception.getMessage());
     }
 }

@@ -1,26 +1,33 @@
-# Devices API
-Task is to develop a REST API capable of persis and managing device resources.
+# Device Management Service
 
-## Device Domain
-* Id
-* Name
-* Brand
-* State (available, in-use, inactive)
-* Creation time
+A high-performance Spring Boot production service designed to track and manage corporate hardware assets (Devices). The system enforces domain-driven encapsulation rules, data-layer safety via PostgreSQL custom types/triggers, and client-side resiliency with an idempotent retry mechanism.
 
-## Supported Functionalities
+---
+
+## 📋 Overview
+
+Tasked with developing a REST API capable of persisting and managing device resources.
+
+### Device Domain
+* **ID:** Unique identifier (UUID).
+* **Name:** Device name.
+* **Brand:** Device manufacturer/brand.
+* **State:** `AVAILABLE`, `IN_USE`, `INACTIVE`.
+* **Creation time:** Timestamp of when the device was registered.
+
+### Supported Functionalities
 * Create a new device.
 * Fully and/or partially update an existing device.
 * Fetch a single device.
-* Fetch all devices.
-* Fetch devices by brand.
-* Fetch devices by state.
+* Fetch all devices (with pagination).
+* Fetch devices by brand (with pagination).
+* Fetch devices by state (with pagination).
 * Delete a single device.
 
-## Domain Valida-ons
-* Crea:on :me cannot be updated.
-* Name and brand proper:es cannot be updated if the device is in use.
-* In use devices cannot be deleted.
+### Domain Validations
+* **Creation time** is immutable and cannot be updated.
+* **Name** and **Brand** properties cannot be updated if the device state is `IN_USE`.
+* **IN_USE** devices cannot be deleted.
 
 ## Acceptance Criteria
 * The applica:on should compile and run successfully.
@@ -34,12 +41,6 @@ Task is to develop a REST API capable of persis and managing device resources.
 ## Requirements
 * Java 21+
 * Maven 3.9+ or Gradle 8+
-
-
-# Device Management Service
-
-A high-performance Spring Boot production service designed to track and manage corporate hardware assets (Devices). The system enforces domain-driven encapsulation rules, data-layer safety via PostgreSQL custom types/triggers, and client-side resiliency with an idempotent retry mechanism.
-
 ---
 
 ## 🏛 Architecture & Core Concepts
@@ -61,34 +62,40 @@ Schema evolution is driven by **Flyway**. The database engine enforces data stru
 
 ---
 
-## Prerequisites
+## 🛠 Prerequisites & Requirements
 
-Before running or developing on this application, ensure you have the following installed:
-* **Java 21** or higher
+* **Java 21**
+* **Gradle 8+**
 * **Docker Desktop**
 * **PostgreSQL 16** (If running outside of Docker Compose)
 
 ---
 
-## Local Development Setup
+## 🚀 Local Development Setup
 
-### 1. Build project
-To build project and execute unit and integration tests you can use following command:
+### 1. Build and Test
+To build the project and execute unit and integration tests:
 ```bash
 ./gradlew clean test bootJar
 ```
 
-Unit test and jacoco reports is available here `build/reports`
+#### Reports:
+* **Unit Tests:** `build/reports/tests/test/index.html`
+* **JaCoCo Coverage:** `build/reports/jacoco/test/html/index.html`
 
-`DeviceApplicationIT` this is integration test which use [Testcontainers](https://docs.spring.io/spring-boot/reference/testing/testcontainers.html)
+> **Note:** `DeviceApplicationIT` is an integration test suite that utilizes [Testcontainers](https://docs.spring.io/spring-boot/reference/testing/testcontainers.html) to run a real PostgreSQL instance.
 
-### 2. Spin up Infrastructure Dependencies
-The repository includes a pre-configured `docker-compose.yml` that initializes your local target database instance. Application deployment can be disabled, if you prefer to run application from your IDE.
+### 2. Run with Docker Compose
+The repository includes a pre-configured `docker-compose.yml` that initializes the database and the application.
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-## Documentation
+---
 
-Swagger documentation for API, available using following URL: http://localhost:8080/swagger-ui/index.html 
+## 📖 API Documentation
+
+The API is documented using OpenAPI/Swagger. Once the application is running, you can access the UI here:
+
+[http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)

@@ -1,4 +1,4 @@
-# Device Management Service
+# Device Management Service for 1Global
 
 A Spring Boot service for managing corporate hardware assets, featuring domain-driven business rules, PostgreSQL data integrity, and idempotent API updates
 

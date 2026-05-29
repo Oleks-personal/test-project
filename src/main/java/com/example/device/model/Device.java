@@ -3,6 +3,7 @@ package com.example.device.model;
 import com.example.device.errors.BusinessRuleViolationException;
 import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.*;
+import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
 
 import java.time.OffsetDateTime;
@@ -146,5 +147,18 @@ public class Device {
     @Override
     public int hashCode() {
         return Objects.hashCode(externalId);
+    }
+
+    @Override
+    public String toString() {
+        return new ToStringBuilder(this)
+                .append("id", id)
+                .append("externalId", externalId)
+                .append("name", name)
+                .append("brand", brand)
+                .append("state", state)
+                .append("creationTime", creationTime)
+                .append("version", version)
+                .toString();
     }
 }

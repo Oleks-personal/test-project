@@ -10,6 +10,8 @@ import com.example.device.service.dto.DeviceCreateRequest;
 import com.example.device.service.dto.DevicePatchRequest;
 import com.example.device.service.dto.DeviceResponse;
 import com.example.device.service.dto.mapper.DeviceMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -24,6 +26,8 @@ import java.util.UUID;
 @Transactional
 @Service
 class DeviceServiceImpl implements DeviceService {
+    private static final Logger LOG = LoggerFactory.getLogger(DeviceServiceImpl.class);
+
     private static final String DEVICE_DATA_INTEGRITY_MESSAGE = "Device data violates persistence constraints.";
 
     private final DeviceRepository deviceRepository;
@@ -41,6 +45,7 @@ class DeviceServiceImpl implements DeviceService {
         try {
             device = deviceRepository.save(newDevice);
         } catch (DataIntegrityViolationException e) {
+            LOG.error("Failed to create device: {}", DEVICE_DATA_INTEGRITY_MESSAGE, e);
             throw new BusinessRuleViolationException(DEVICE_DATA_INTEGRITY_MESSAGE, e);
         }
         return transformToDto(device);
@@ -55,7 +60,7 @@ class DeviceServiceImpl implements DeviceService {
             if (isStaleIdempotentRetry(existingDevice, updateRequest)) {
                 return transformToDto(existingDevice);
             }
-
+            LOG.warn("Optimistic lock failure: Device {} has version {} in database, but update request specified version {}", id, existingDevice.getVersion(), updateRequest.version());
             throw new ObjectOptimisticLockingFailureException(Device.class, id);
         }
 
@@ -69,6 +74,7 @@ class DeviceServiceImpl implements DeviceService {
         try {
             device = deviceRepository.saveAndFlush(existingDevice);
         } catch (DataIntegrityViolationException e) {
+            LOG.error("Failed to update device {}: {}", id, DEVICE_DATA_INTEGRITY_MESSAGE, e);
             throw new BusinessRuleViolationException(DEVICE_DATA_INTEGRITY_MESSAGE, e);
         }
         return transformToDto(device);
@@ -80,6 +86,7 @@ class DeviceServiceImpl implements DeviceService {
                 .orElseThrow(() -> new DeviceNotFoundException("Device not found with id: " + id));
 
         if (!device.canBeDeleted()) {
+            LOG.warn("Cannot delete device {} because it is in an invalid state for deletion: {}", id, device.getState());
             throw new BusinessRuleViolationException("Cannot delete device because it is currently in use.");
         }
 

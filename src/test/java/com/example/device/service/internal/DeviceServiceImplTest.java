@@ -6,16 +6,20 @@ import com.example.device.model.Device;
 import com.example.device.model.DeviceState;
 import com.example.device.repository.DeviceRepository;
 import com.example.device.service.dto.DeviceCreateRequest;
+import com.example.device.service.dto.DevicePatchRequest;
 import com.example.device.service.dto.DeviceResponse;
-import com.example.device.service.dto.DeviceUpdateRequest;
-import jakarta.persistence.EntityManager;
+import com.example.device.service.dto.mapper.DeviceMapper;
 import org.jspecify.annotations.NonNull;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mapstruct.factory.Mappers;
+import org.mockito.ArgumentMatcher;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -27,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.example.device.model.DeviceState.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -35,21 +40,24 @@ import static org.mockito.Mockito.*;
 class DeviceServiceImplTest {
     @Mock
     private DeviceRepository deviceRepository;
-    @Mock
-    private DeviceFactory deviceFactory;
     @InjectMocks
     private DeviceServiceImpl deviceService;
+    private DeviceMapper deviceMapper= Mappers.getMapper(DeviceMapper.class);
+
+    @BeforeEach
+    void setUp() {
+        deviceService = new DeviceServiceImpl(deviceRepository, deviceMapper);
+    }
 
     @Test
-    void createDevice_ValidDevice_ShouldSave() {
+    void createsDevice() {
         UUID deviceId = UUID.randomUUID();
 
-        Device device = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.IN_USE);
-        DeviceCreateRequest request = createDeviceCreateRequest("New Name", "New Brand", DeviceState.IN_USE);
-        DeviceResponse expectedDeviceResponse = createTestDeviceResponse(device);
+        Device device = device(deviceId, "New Name", "New Brand", IN_USE);
+        DeviceCreateRequest request = createRequest("New Name", "New Brand", IN_USE);
+        DeviceResponse expectedDeviceResponse = response(device);
 
-        when(deviceFactory.createDevice(request)).thenReturn(device);
-        when(deviceRepository.save(eq(device))).thenReturn(device);
+        when(deviceRepository.save(argThat(new DeviceMatcher(device)))).thenReturn(device);
 
         DeviceResponse deviceResponse = deviceService.createDevice(request);
         assertEquals(expectedDeviceResponse, deviceResponse);
@@ -58,32 +66,44 @@ class DeviceServiceImplTest {
     }
 
     @Test
-    void createDevice_IfNotValidDevice_ShouldThrowException() {
-        DeviceCreateRequest request = createDeviceCreateRequest("", "New Brand", DeviceState.INACTIVE);
+    void rejectsInvalidDevice() {
+        DeviceCreateRequest request = createRequest("", "New Brand", INACTIVE);
 
-        when(deviceFactory.createDevice(request)).thenThrow(new IllegalArgumentException());
-
-        assertThrows(IllegalArgumentException.class, () -> deviceService.createDevice(request));
+        assertThrows(BusinessRuleViolationException.class, () -> deviceService.createDevice(request));
 
         verify(deviceRepository, never()).save(any(Device.class));
     }
 
     @Test
+    void sanitizesDataIntegrityFailure() {
+        DeviceCreateRequest request = createRequest("New Name", "New Brand", IN_USE);
+        DataIntegrityViolationException repositoryException = new DataIntegrityViolationException("duplicate key value violates unique constraint");
+
+        when(deviceRepository.save(any(Device.class))).thenThrow(repositoryException);
+
+        BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> deviceService.createDevice(request));
+
+        assertEquals("Device data violates persistence constraints.", exception.getMessage());
+        assertSame(repositoryException, exception.getCause());
+    }
+
+    @Test
     @DisplayName("When device exists and valid, should update and save.")
-    void updateDevice_WhenDeviceExistsAndValid_ShouldUpdateAndSave() {
+    void updatesDevice() {
         UUID deviceId = UUID.randomUUID();
         Long version = 1L;
 
-        Device existingDevice = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.AVAILABLE, version);
-        DeviceUpdateRequest request = createDeviceUpdateRequest(Optional.of("New Name"), Optional.of("New Brand"), Optional.of(DeviceState.IN_USE), version);
+        Device existingDevice = device(deviceId, "Old Name", "Old Brand", AVAILABLE, version);
+        Device updatingDevice = device(deviceId, "New Name", "New Brand", IN_USE, version);
+        DevicePatchRequest request = patch("New Name", "New Brand", IN_USE, version);
 
-        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
-        when(deviceRepository.saveAndFlush(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        givenDeviceExists(deviceId, existingDevice);
+        when(deviceRepository.saveAndFlush(argThat(new DeviceMatcher(updatingDevice)))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DeviceResponse result = deviceService.updateDevice(deviceId, request);
 
         assertNotNull(result);
-        assertEquals(deviceId, existingDevice.getId());
+        assertEquals(deviceId, existingDevice.getExternalId());
         assertEquals("New Name", result.name());
         assertEquals("New Brand", result.brand());
         assertEquals(DeviceState.IN_USE, result.state());
@@ -92,21 +112,21 @@ class DeviceServiceImplTest {
     }
 
     @Test
-    void updateDevice_WhenDeviceInUseAndStatusChanged_ShouldUpdateAndSave() {
+    void updatesStateWhenInUse() {
         UUID deviceId = UUID.randomUUID();
         Long version = 1L;
 
-        Device existingDevice = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.IN_USE, version);
+        Device existingDevice = device(deviceId, "Old Name", "Old Brand", IN_USE, version);
 
-        DeviceUpdateRequest request = createDeviceUpdateRequest(Optional.of("Old Name"), Optional.of("Old Brand"), Optional.of(DeviceState.INACTIVE), version);
+        DevicePatchRequest request = patch("Old Name", "Old Brand", INACTIVE, version);
 
-        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
-        when(deviceRepository.saveAndFlush(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        givenDeviceExists(deviceId, existingDevice);
+        saveAndFlushReturnsArgument();
 
         DeviceResponse result = deviceService.updateDevice(deviceId, request);
 
         assertNotNull(result);
-        assertEquals(deviceId, existingDevice.getId());
+        assertEquals(deviceId, existingDevice.getExternalId());
         assertEquals("Old Name", result.name());
         assertEquals("Old Brand", result.brand());
         assertEquals(DeviceState.INACTIVE, result.state());
@@ -115,13 +135,13 @@ class DeviceServiceImplTest {
     }
 
     @Test
-    void updateDevice_WhenDeviceDoesNotExist_ShouldThrowException() {
+    void rejectsMissingDeviceOnUpdate() {
         UUID deviceId = UUID.randomUUID();
         Long version = 1L;
 
-        DeviceUpdateRequest request = createDeviceUpdateRequest(Optional.empty(), Optional.empty(), Optional.empty(), version);
+        DevicePatchRequest request = patch(null, null, null, version);
 
-        when(deviceRepository.findById(deviceId)).thenReturn(Optional.empty());
+        givenDeviceDoesNotExist(deviceId);
 
         assertThrows(DeviceNotFoundException.class, () -> deviceService.updateDevice(deviceId, request));
 
@@ -129,15 +149,15 @@ class DeviceServiceImplTest {
     }
 
     @Test
-    void updateDevice_WhenDeviceInUseAndNameChanges_ShouldThrowBusinessRuleViolationException() {
+    void rejectsNameChangeWhenInUse() {
         UUID deviceId = UUID.randomUUID();
         Long version = 1L;
 
-        Device existingDevice = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.IN_USE, version);
+        Device existingDevice = device(deviceId, "Old Name", "Old Brand", IN_USE, version);
 
-        DeviceUpdateRequest request = createDeviceUpdateRequest(Optional.of("Illegal Name Change"), Optional.of("Old Brand"), Optional.of(DeviceState.IN_USE), version);
+        DevicePatchRequest request = patch("Illegal Name Change", "Old Brand", IN_USE, version);
 
-        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
+        givenDeviceExists(deviceId, existingDevice);
 
         BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> deviceService.updateDevice(deviceId, request));
 
@@ -146,14 +166,14 @@ class DeviceServiceImplTest {
     }
 
     @Test
-    void updateDevice_WhenDeviceInUseAndBrandChanges_ShouldThrowBusinessRuleViolationException() {
+    void rejectsBrandChangeWhenInUse() {
         UUID deviceId = UUID.randomUUID();
         Long version = 1L;
 
-        Device existingDevice = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.IN_USE, version);
-        DeviceUpdateRequest request = createDeviceUpdateRequest(Optional.of("Old Name"), Optional.of("Illegal Brand Change"), Optional.of(DeviceState.IN_USE), version);
+        Device existingDevice = device(deviceId, "Old Name", "Old Brand", IN_USE, version);
+        DevicePatchRequest request = patch("Old Name", "Illegal Brand Change", IN_USE, version);
 
-        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
+        givenDeviceExists(deviceId, existingDevice);
 
         BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> deviceService.updateDevice(deviceId, request));
 
@@ -163,21 +183,16 @@ class DeviceServiceImplTest {
 
     @Test
     @DisplayName("When request version is older than DB version, but request data the same as in DB, should skip update and return current state (Idempotency)")
-    void updateDevice_WhenVersionIsStale_ButDataTheSameAsInDB_ShouldReturnExistingDeviceWithoutSaving() {
+    void allowsIdenticalStaleRetry() {
         UUID deviceId = UUID.randomUUID();
         long databaseVersion = 5L;
         long staleClientVersion = 4L;
 
-        Device existingDevice = createTestDevice(deviceId, "Current Name", "Current Brand", DeviceState.AVAILABLE, databaseVersion);
+        Device existingDevice = device(deviceId, "Current Name", "Current Brand", AVAILABLE, databaseVersion);
 
-        DeviceUpdateRequest request = createDeviceUpdateRequest(
-                Optional.of("Current Name"),
-                Optional.of("Current Brand"),
-                Optional.of(DeviceState.AVAILABLE),
-                staleClientVersion
-        );
+        DevicePatchRequest request = patch("Current Name", "Current Brand", AVAILABLE, staleClientVersion);
 
-        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
+        givenDeviceExists(deviceId, existingDevice);
 
         DeviceResponse result = deviceService.updateDevice(deviceId, request);
 
@@ -190,21 +205,16 @@ class DeviceServiceImplTest {
 
     @Test
     @DisplayName("When request version is older than DB version, but request data not the same as in DB, should throw optimistic locking exception")
-    void updateDevice_WhenVersionIsStaleButDataNotTheSameAsInDB_ShouldThrowOptimisticLockingException() {
+    void rejectsDifferentStalePayload() {
         UUID deviceId = UUID.randomUUID();
         long databaseVersion = 5L;
         long staleClientVersion = 4L;
 
-        Device existingDevice = createTestDevice(deviceId, "Current Name", "Current Brand", DeviceState.AVAILABLE, databaseVersion);
+        Device existingDevice = device(deviceId, "Current Name", "Current Brand", AVAILABLE, databaseVersion);
 
-        DeviceUpdateRequest request = createDeviceUpdateRequest(
-                Optional.of("Another Name"),
-                Optional.of("Another Brand"),
-                Optional.of(DeviceState.AVAILABLE),
-                staleClientVersion
-        );
+        DevicePatchRequest request = patch("Another Name", "Another Brand", AVAILABLE, staleClientVersion);
 
-        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
+        givenDeviceExists(deviceId, existingDevice);
 
         OptimisticLockingFailureException exception = assertThrows(OptimisticLockingFailureException.class, () -> deviceService.updateDevice(deviceId, request));
         assertEquals("Object of class [com.example.device.model.Device] with identifier [" + deviceId + "]: optimistic locking failed", exception.getMessage());
@@ -213,11 +223,30 @@ class DeviceServiceImplTest {
     }
 
     @Test
-    void deleteDevice_IfDeviceExistsAndValid_ShouldDelete() {
+    @DisplayName("When request version is newer than DB version, should throw optimistic locking exception")
+    void rejectsFutureVersion() {
         UUID deviceId = UUID.randomUUID();
-        Device existingDevice = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.INACTIVE);
+        long databaseVersion = 5L;
+        long futureClientVersion = 6L;
 
-        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
+        Device existingDevice = device(deviceId, "Current Name", "Current Brand", AVAILABLE, databaseVersion);
+
+        DevicePatchRequest request = patch("Another Name", "Current Brand", AVAILABLE, futureClientVersion);
+
+        givenDeviceExists(deviceId, existingDevice);
+
+        OptimisticLockingFailureException exception = assertThrows(OptimisticLockingFailureException.class, () -> deviceService.updateDevice(deviceId, request));
+        assertEquals("Object of class [com.example.device.model.Device] with identifier [" + deviceId + "]: optimistic locking failed", exception.getMessage());
+
+        verify(deviceRepository, never()).save(any(Device.class));
+    }
+
+    @Test
+    void deletesDevice() {
+        UUID deviceId = UUID.randomUUID();
+        Device existingDevice = device(deviceId, "Old Name", "Old Brand", INACTIVE);
+
+        givenDeviceExists(deviceId, existingDevice);
 
         deviceService.deleteDevice(deviceId);
 
@@ -225,93 +254,93 @@ class DeviceServiceImplTest {
     }
 
     @Test
-    void deleteDevice_IfDeviceNotExists_ShouldThrowException() {
+    void rejectsMissingDeviceOnDelete() {
         UUID deviceId = UUID.randomUUID();
 
-        when(deviceRepository.findById(deviceId)).thenReturn(Optional.empty());
+        givenDeviceDoesNotExist(deviceId);
 
         DeviceNotFoundException exception = assertThrows(DeviceNotFoundException.class, () -> deviceService.deleteDevice(deviceId));
 
         assertEquals("Device not found with id: " + deviceId, exception.getMessage());
 
-        verify(deviceRepository, never()).deleteById(deviceId);
+        verify(deviceRepository, never()).deleteById(anyLong());
     }
 
     @Test
-    void deleteDevice_IfDeviceInUse_ShouldThrowException() {
+    void rejectsDeletingInUseDevice() {
         UUID deviceId = UUID.randomUUID();
 
-        Device existingDevice = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.IN_USE);
+        Device existingDevice = device(deviceId, "Old Name", "Old Brand", IN_USE);
 
-        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
+        givenDeviceExists(deviceId, existingDevice);
 
         BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> deviceService.deleteDevice(deviceId));
 
         assertEquals("Cannot delete device because it is currently in use.", exception.getMessage());
 
-        verify(deviceRepository, never()).deleteById(deviceId);
+        verify(deviceRepository, never()).deleteById(anyLong());
     }
 
     @Test
-    void findById_IfDeviceExists_ShouldReturn() {
+    void returnsDeviceByExternalId() {
         UUID deviceId = UUID.randomUUID();
 
-        Device existingDevice = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.INACTIVE);
+        Device existingDevice = device(deviceId, "Old Name", "Old Brand", INACTIVE);
 
-        when(deviceRepository.findById(deviceId)).thenReturn(Optional.of(existingDevice));
+        givenDeviceExists(deviceId, existingDevice);
 
-        deviceService.findById(deviceId);
+        deviceService.findByExternalId(deviceId);
 
-        verify(deviceRepository, times(1)).findById(deviceId);
+        verify(deviceRepository, times(1)).findByExternalId(deviceId);
     }
 
     @Test
-    void findById_IfDeviceNotExists_ShouldTrowException() {
+    void rejectsMissingDeviceByExternalId() {
         UUID deviceId = UUID.randomUUID();
-        when(deviceRepository.findById(deviceId)).thenReturn(Optional.empty());
+        givenDeviceDoesNotExist(deviceId);
 
-        DeviceNotFoundException exception = assertThrows(DeviceNotFoundException.class, () -> deviceService.findById(deviceId));
+        DeviceNotFoundException exception = assertThrows(DeviceNotFoundException.class, () -> deviceService.findByExternalId(deviceId));
 
         assertEquals("Device not found with id: " + deviceId, exception.getMessage());
 
-        verify(deviceRepository, times(1)).findById(deviceId);
+        verify(deviceRepository, times(1)).findByExternalId(deviceId);
     }
 
     @Test
-    void findByState_IfDevicesExists_ShouldReturn() {
+    void returnsDevicesByState() {
         UUID deviceId = UUID.randomUUID();
 
         PageRequest pageable = PageRequest.of(1, 50);
-        Device existingDevice = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.IN_USE);
-        DeviceResponse deviceResponse = createTestDeviceResponse(existingDevice);
+        Device existingDevice = device(deviceId, "Old Name", "Old Brand", IN_USE);
+        DeviceResponse deviceResponse = response(existingDevice);
         List<DeviceResponse> expectedDevices = List.of(deviceResponse);
 
-        when(deviceRepository.findByState(DeviceState.IN_USE, pageable)).thenReturn(new PageImpl<>(List.of(existingDevice)));
+        when(deviceRepository.findByState(IN_USE, pageable)).thenReturn(new PageImpl<>(List.of(existingDevice)));
 
-        Slice<DeviceResponse> devices = deviceService.findByState(DeviceState.IN_USE, pageable);
+        Slice<DeviceResponse> devices = deviceService.findByState(IN_USE, pageable);
 
         assertEquals(new PageImpl<>(expectedDevices), devices);
-        verify(deviceRepository, times(1)).findByState(DeviceState.IN_USE, pageable);
+        verify(deviceRepository, times(1)).findByState(IN_USE, pageable);
     }
 
     @Test
-    void findByState_IfDeviceNotExists_ShouldReturnEmptyList() {
+    void returnsEmptyStateResults() {
         PageRequest pageable = PageRequest.of(1, 50);
-        when(deviceRepository.findByState(DeviceState.IN_USE, pageable)).thenReturn(Page.empty());
+        when(deviceRepository.findByState(IN_USE, pageable)).thenReturn(Page.empty());
 
-        Slice<DeviceResponse> devices = deviceService.findByState(DeviceState.IN_USE, pageable);
+        Slice<DeviceResponse> devices = deviceService.findByState(IN_USE, pageable);
         assertEquals(Page.empty(), devices);
 
-        verify(deviceRepository, times(1)).findByState(DeviceState.IN_USE, pageable);
+        verify(deviceRepository, times(1)).findByState(IN_USE, pageable);
     }
 
     @Test
-    void findByBrand_IfDevicesExists_ShouldReturn() {
+    void returnsDevicesByBrand() {
         UUID deviceId = UUID.randomUUID();
         PageRequest pageable = PageRequest.of(1, 50);
 
-        Device existingDevice = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.IN_USE);
-        DeviceResponse deviceResponse = createTestDeviceResponse(existingDevice);
+        Device existingDevice = device(deviceId, "Old Name", "Old Brand", IN_USE);
+        DeviceResponse deviceResponse = response(existingDevice);
         List<DeviceResponse> expectedDevices = List.of(deviceResponse);
 
         when(deviceRepository.findByBrand("Old Brand", pageable)).thenReturn(new PageImpl<>(List.of(existingDevice)));
@@ -323,7 +352,7 @@ class DeviceServiceImplTest {
     }
 
     @Test
-    void findByBrand_IfDeviceNotExists_ShouldReturnEmptyList() {
+    void returnsEmptyBrandResults() {
         PageRequest pageable = PageRequest.of(1, 50);
         when(deviceRepository.findByBrand("Old Brand", pageable)).thenReturn(Page.empty());
 
@@ -334,12 +363,12 @@ class DeviceServiceImplTest {
     }
 
     @Test
-    void findAll_IfDevicesExists_ShouldReturn() {
+    void returnsAllDevices() {
         UUID deviceId = UUID.randomUUID();
 
         PageRequest pageable = PageRequest.of(1, 50);
-        Device existingDevice = createTestDevice(deviceId, "Old Name", "Old Brand", DeviceState.IN_USE);
-        DeviceResponse deviceResponse = createTestDeviceResponse(existingDevice);
+        Device existingDevice = device(deviceId, "Old Name", "Old Brand", IN_USE);
+        DeviceResponse deviceResponse = response(existingDevice);
         List<DeviceResponse> expectedDevices = List.of(deviceResponse);
 
         when(deviceRepository.queryAllBy(pageable)).thenReturn(new PageImpl<>(List.of(existingDevice)));
@@ -351,7 +380,7 @@ class DeviceServiceImplTest {
     }
 
     @Test
-    void findAll_IfDeviceNotExists_ShouldReturnEmptyPage() {
+    void returnsEmptyDevicePage() {
         PageRequest pageable = PageRequest.of(1, 50);
         when(deviceRepository.queryAllBy(pageable)).thenReturn(Page.empty());
 
@@ -361,41 +390,51 @@ class DeviceServiceImplTest {
         verify(deviceRepository, times(1)).queryAllBy(pageable);
     }
 
-    private static @NonNull Device createTestDevice(UUID deviceId, final String name, final String brand, final DeviceState deviceState) {
-        return createTestDevice(deviceId, name, brand, deviceState, 1L);
+    private void givenDeviceExists(UUID deviceId, Device device) {
+        when(deviceRepository.findByExternalId(deviceId)).thenReturn(Optional.of(device));
     }
 
-    private static @NonNull Device createTestDevice(UUID deviceId, final String name, final String brand, final DeviceState deviceState, Long version) {
-        Device device = new Device(name, brand, deviceState) {
-            @Override
-            protected @NonNull UUID generateUUID() {
-                return deviceId;
-            }
-        };
+    private void givenDeviceDoesNotExist(UUID deviceId) {
+        when(deviceRepository.findByExternalId(deviceId)).thenReturn(Optional.empty());
+    }
+
+    private void saveAndFlushReturnsArgument() {
+        when(deviceRepository.saveAndFlush(any(Device.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private static @NonNull Device device(UUID deviceId, final String name, final String brand, final DeviceState deviceState) {
+        return device(deviceId, name, brand, deviceState, 1L);
+    }
+
+    private static @NonNull Device device(UUID deviceId, final String name, final String brand, final DeviceState deviceState, Long version) {
+        Device device = new Device(name, brand, deviceState);
+        ReflectionTestUtils.setField(device, "externalId", deviceId);
         if (version != null) {
             ReflectionTestUtils.setField(device, "version", version);
         }
         return device;
     }
 
-    private static @NonNull DeviceResponse createTestDeviceResponse(Device device) {
-        return new DeviceResponse(device.getId(), device.getName(), device.getBrand(), device.getState(), device.getVersion(), device.getCreationTime());
+    private static @NonNull DeviceResponse response(Device device) {
+        return new DeviceResponse(device.getExternalId(), device.getName(), device.getBrand(), device.getState(), device.getVersion(), device.getCreationTime());
     }
 
-    private static @NonNull DeviceUpdateRequest createDeviceUpdateRequest(Optional<String> newName, Optional<String> newBrand, Optional<DeviceState> newDeviceState, Long version) {
-        return new DeviceUpdateRequest(
-                newName,
-                newBrand,
-                newDeviceState,
-                version
-        );
+    private static @NonNull DevicePatchRequest patch(String name, String brand, DeviceState state, Long version) {
+        return new DevicePatchRequest(name, brand, state, version);
     }
 
-    private static @NonNull DeviceCreateRequest createDeviceCreateRequest(String name, String brand, DeviceState deviceState) {
-        return new DeviceCreateRequest(
-                name,
-                brand,
-                deviceState
-        );
+    private static @NonNull DeviceCreateRequest createRequest(String name, String brand, DeviceState state) {
+        return new DeviceCreateRequest(name, brand, state);
     }
+
+    private record DeviceMatcher(Device left) implements ArgumentMatcher<Device> {
+
+        @Override
+            public boolean matches(Device right) {
+                return left.getBrand().equals(right.getBrand()) &&
+                        left.getName().equals(right.getName()) &&
+                        left.getState().equals(right.getState()) &&
+                        right.getExternalId() != null;
+            }
+        }
 }

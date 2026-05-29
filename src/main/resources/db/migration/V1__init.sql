@@ -9,17 +9,22 @@ END $$;
 -- 2. Base Table Layout
 CREATE TABLE IF NOT EXISTS devices
 (
-    id            UUID PRIMARY KEY,
+    id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    external_id   UUID NOT NULL,
     name          VARCHAR(255) NOT NULL,
     brand         VARCHAR(255) NOT NULL,
     state         device_state NOT NULL    DEFAULT 'AVAILABLE',
     version       BIGINT       NOT NULL    DEFAULT 0,
-    creation_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+    creation_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT uq_devices_external_id UNIQUE (external_id)
                                 );
 
 -- 3. Manage Search Indexes
 DROP INDEX IF EXISTS idx_devices_brand;
 CREATE INDEX idx_devices_brand ON devices (brand);
+
+DROP INDEX IF EXISTS idx_devices_external_id;
+CREATE INDEX idx_devices_external_id ON devices (external_id);
 
 DROP INDEX IF EXISTS idx_devices_state;
 CREATE INDEX idx_devices_state ON devices (state);

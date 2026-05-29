@@ -7,8 +7,10 @@ import com.example.device.model.DeviceState;
 import com.example.device.repository.DeviceRepository;
 import com.example.device.service.DeviceService;
 import com.example.device.service.dto.DeviceCreateRequest;
+import com.example.device.service.dto.DevicePatchRequest;
 import com.example.device.service.dto.DeviceResponse;
-import com.example.device.service.dto.DeviceUpdateRequest;
+import com.example.device.service.dto.mapper.DeviceMapper;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -16,56 +18,65 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Transactional
 @Service
 class DeviceServiceImpl implements DeviceService {
+    private static final String DEVICE_DATA_INTEGRITY_MESSAGE = "Device data violates persistence constraints.";
 
     private final DeviceRepository deviceRepository;
-    private final DeviceFactory deviceFactory;
+    private final DeviceMapper deviceMapper;
 
-    DeviceServiceImpl(DeviceRepository deviceRepository, DeviceFactory deviceFactory) {
+    DeviceServiceImpl(DeviceRepository deviceRepository, DeviceMapper deviceMapper) {
         this.deviceRepository = deviceRepository;
-        this.deviceFactory = deviceFactory;
+        this.deviceMapper = deviceMapper;
     }
 
     @Override
     public DeviceResponse createDevice(DeviceCreateRequest deviceCreateRequest) {
-        Device newDevice = deviceFactory.createDevice(deviceCreateRequest);
-        Device device = deviceRepository.save(newDevice);
+        Device newDevice = deviceMapper.deviceCreateRequestToDevice(deviceCreateRequest);
+        Device device;
+        try {
+            device = deviceRepository.save(newDevice);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessRuleViolationException(DEVICE_DATA_INTEGRITY_MESSAGE, e);
+        }
         return transformToDto(device);
     }
 
     @Override
-    public DeviceResponse updateDevice(UUID id, DeviceUpdateRequest updateRequest) {
-        Device existingDevice = deviceRepository.findById(id)
+    public DeviceResponse updateDevice(UUID id, DevicePatchRequest updateRequest) {
+        Device existingDevice = deviceRepository.findByExternalId(id)
                 .orElseThrow(() -> new DeviceNotFoundException("Device not found with id: " + id));
 
-        if (existingDevice.getVersion() != null && existingDevice.getVersion() > updateRequest.version()) {
-            boolean isIdempotentRetry = updateRequest.name().map(name -> ObjectUtils.nullSafeEquals(existingDevice.getName(), name)).orElse(true)
-                    && updateRequest.brand().map(brand -> ObjectUtils.nullSafeEquals(existingDevice.getBrand(), brand)).orElse(true)
-                    && updateRequest.state().map(state -> ObjectUtils.nullSafeEquals(existingDevice.getState(), state)).orElse(true);
-
-            if (isIdempotentRetry) {
+        if (!ObjectUtils.nullSafeEquals(existingDevice.getVersion(), updateRequest.version())) {
+            if (isStaleIdempotentRetry(existingDevice, updateRequest)) {
                 return transformToDto(existingDevice);
             }
 
             throw new ObjectOptimisticLockingFailureException(Device.class, id);
         }
 
-        String targetName = updateRequest.resolveName(existingDevice);
-        String targetBrand = updateRequest.resolveBrand(existingDevice);
-        DeviceState targetState = updateRequest.resolveState(existingDevice);
+        String targetName = Optional.ofNullable(updateRequest.name()).orElse(existingDevice.getName());
+        String targetBrand = Optional.ofNullable(updateRequest.brand()).orElse(existingDevice.getBrand());
+        DeviceState targetState = Optional.ofNullable(updateRequest.state()).orElse(existingDevice.getState());
+
         existingDevice.updateDetails(targetName, targetBrand, targetState);
 
-        Device device = deviceRepository.saveAndFlush(existingDevice);
+        Device device;
+        try {
+            device = deviceRepository.saveAndFlush(existingDevice);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessRuleViolationException(DEVICE_DATA_INTEGRITY_MESSAGE, e);
+        }
         return transformToDto(device);
     }
 
     @Override
     public void deleteDevice(UUID id) {
-        Device device = deviceRepository.findById(id)
+        Device device = deviceRepository.findByExternalId(id)
                 .orElseThrow(() -> new DeviceNotFoundException("Device not found with id: " + id));
 
         if (!device.canBeDeleted()) {
@@ -77,8 +88,8 @@ class DeviceServiceImpl implements DeviceService {
 
     @Transactional(readOnly = true)
     @Override
-    public DeviceResponse findById(UUID id) {
-        Device device = deviceRepository.findById(id)
+    public DeviceResponse findByExternalId(UUID id) {
+        Device device = deviceRepository.findByExternalId(id)
                 .orElseThrow(() -> new DeviceNotFoundException("Device not found with id: " + id));
         return transformToDto(device);
     }
@@ -106,12 +117,14 @@ class DeviceServiceImpl implements DeviceService {
     }
 
     private DeviceResponse transformToDto(Device device) {
-        return new DeviceResponse(
-                device.getId(),
-                device.getName(),
-                device.getBrand(),
-                device.getState(),
-                device.getVersion(),
-                device.getCreationTime());
+        return deviceMapper.deviceToDeviceResponse(device);
+    }
+
+    private boolean isStaleIdempotentRetry(Device existingDevice, DevicePatchRequest updateRequest) {
+        return existingDevice.getVersion() != null
+                && existingDevice.getVersion() > updateRequest.version()
+                && (updateRequest.name() == null || ObjectUtils.nullSafeEquals(updateRequest.name(), existingDevice.getName()))
+                && (updateRequest.brand() == null || ObjectUtils.nullSafeEquals(updateRequest.brand(), existingDevice.getBrand()))
+                && (updateRequest.state() == null || ObjectUtils.nullSafeEquals(updateRequest.state(), existingDevice.getState()));
     }
 }

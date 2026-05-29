@@ -5,8 +5,8 @@ import com.example.device.errors.DeviceNotFoundException;
 import com.example.device.model.DeviceState;
 import com.example.device.service.DeviceService;
 import com.example.device.service.dto.DeviceCreateRequest;
+import com.example.device.service.dto.DevicePatchRequest;
 import com.example.device.service.dto.DeviceResponse;
-import com.example.device.service.dto.DeviceUpdateRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,13 +18,15 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
+import static com.example.device.model.DeviceState.AVAILABLE;
+import static com.example.device.model.DeviceState.IN_USE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -49,17 +51,13 @@ class DeviceControllerTest {
 
         @Test
         @DisplayName("Should return 201 Created and response payload when request is valid")
-        void createDevice_ValidRequest_ShouldReturnCreated() throws Exception {
-            // Arrange
-            var request = new DeviceCreateRequest("Scanner X", "HP", DeviceState.AVAILABLE);
-            var responseDto = new DeviceResponse(UUID.randomUUID(), "Scanner X", "HP", DeviceState.AVAILABLE, 0L, OffsetDateTime.now());
+        void createsDevice() throws Exception {
+            var request = createRequest("Scanner X", "HP", AVAILABLE);
+            var responseDto = response("Scanner X", "HP", AVAILABLE);
 
             when(deviceService.createDevice(any(DeviceCreateRequest.class))).thenReturn(responseDto);
 
-            // Act & Assert
-            mockMvc.perform(post("/api/v1/devices")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
+            postDevice(request)
                     .andExpect(status().isCreated())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.id").value(responseDto.id().toString()))
@@ -70,14 +68,10 @@ class DeviceControllerTest {
 
         @Test
         @DisplayName("Should return 400 Bad Request when Jakarta constraints fail")
-        void createDevice_InvalidRequest_ShouldReturnBadRequest() throws Exception {
-            // Arrange - assuming blank name triggers validation constraints on DeviceCreateRequest
-            var invalidRequest = new DeviceCreateRequest("", "HP", DeviceState.AVAILABLE);
+        void rejectsInvalidCreateRequest() throws Exception {
+            var invalidRequest = createRequest("", "HP", AVAILABLE);
 
-            // Act & Assert
-            mockMvc.perform(post("/api/v1/devices")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(invalidRequest)))
+            postDevice(invalidRequest)
                     .andExpect(status().isBadRequest());
 
             verify(deviceService, never()).createDevice(any());
@@ -90,18 +84,14 @@ class DeviceControllerTest {
 
         @Test
         @DisplayName("Should return 200 OK and updated payload when update succeeds")
-        void updateDevice_ValidRequest_ShouldReturnOk() throws Exception {
-            // Arrange
+        void updatesDevice() throws Exception {
             UUID deviceId = UUID.randomUUID();
-            var updateRequest = new DeviceUpdateRequest(Optional.of("New Name"), Optional.of("HP"), Optional.of(DeviceState.IN_USE), 1L);
-            var responseDto = new DeviceResponse(deviceId, "New Name", "HP", DeviceState.IN_USE, 2L, OffsetDateTime.now());
+            var updateRequest = patchRequest("New Name", "HP", IN_USE, 1L);
+            var responseDto = response(deviceId, "New Name", "HP", IN_USE, 2L);
 
-            when(deviceService.updateDevice(eq(deviceId), any(DeviceUpdateRequest.class))).thenReturn(responseDto);
+            when(deviceService.updateDevice(eq(deviceId), any(DevicePatchRequest.class))).thenReturn(responseDto);
 
-            // Act & Assert
-            mockMvc.perform(patch("/api/v1/devices/{id}", deviceId)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(updateRequest)))
+            patchDevice(deviceId, updateRequest)
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.name").value("New Name"))
                     .andExpect(jsonPath("$.state").value("IN_USE"))
@@ -109,19 +99,31 @@ class DeviceControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 404 Not Found when device does not exist")
-        void updateDevice_NonExistingId_ShouldReturnNotFound() throws Exception {
-            // Arrange
-            UUID missingId = UUID.randomUUID();
-            var updateRequest = new DeviceUpdateRequest(Optional.of("Name"), Optional.empty(), Optional.empty(), 0L);
+        @DisplayName("Should return 400 Bad Request when version is omitted")
+        void rejectsMissingVersion() throws Exception {
+            UUID deviceId = UUID.randomUUID();
+            String requestWithoutVersion = """
+                    {
+                      "name": "New Name"
+                    }
+                    """;
 
-            when(deviceService.updateDevice(eq(missingId), any(DeviceUpdateRequest.class)))
+            patchDevice(deviceId, requestWithoutVersion)
+                    .andExpect(status().isBadRequest());
+
+            verify(deviceService, never()).updateDevice(any(), any());
+        }
+
+        @Test
+        @DisplayName("Should return 404 Not Found when device does not exist")
+        void returnsNotFoundForMissingDeviceOnUpdate() throws Exception {
+            UUID missingId = UUID.randomUUID();
+            var updateRequest = patchRequest("Name", null, null, 0L);
+
+            when(deviceService.updateDevice(eq(missingId), any(DevicePatchRequest.class)))
                     .thenThrow(new DeviceNotFoundException("Device not found with id: " + missingId));
 
-            // Act & Assert
-            mockMvc.perform(patch("/api/v1/devices/{id}", missingId)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(updateRequest)))
+            patchDevice(missingId, updateRequest)
                     .andExpect(status().isNotFound());
         }
     }
@@ -132,13 +134,11 @@ class DeviceControllerTest {
 
         @Test
         @DisplayName("Should return 244 No Content on successful removal")
-        void deleteDevice_ExistingId_ShouldReturnNoContent() throws Exception {
-            // Arrange
+        void deletesDevice() throws Exception {
             UUID deviceId = UUID.randomUUID();
             doNothing().when(deviceService).deleteDevice(deviceId);
 
-            // Act & Assert
-            mockMvc.perform(delete("/api/v1/devices/{id}", deviceId))
+            deleteDevice(deviceId)
                     .andExpect(status().isNoContent());
 
             verify(deviceService, times(1)).deleteDevice(deviceId);
@@ -146,14 +146,12 @@ class DeviceControllerTest {
 
         @Test
         @DisplayName("Should return 409 Conflict when business rules block deletion")
-        void deleteDevice_InUse_ShouldReturnConflict() throws Exception {
-            // Arrange
+        void rejectsDeletingInUseDevice() throws Exception {
             UUID activeDeviceId = UUID.randomUUID();
             doThrow(new BusinessRuleViolationException("Cannot delete device because it is currently in use."))
                     .when(deviceService).deleteDevice(activeDeviceId);
 
-            // Act & Assert
-            mockMvc.perform(delete("/api/v1/devices/{id}", activeDeviceId))
+            deleteDevice(activeDeviceId)
                     .andExpect(status().isUnprocessableContent());
         }
     }
@@ -164,25 +162,37 @@ class DeviceControllerTest {
 
         @Test
         @DisplayName("GET /api/v1/devices - Should safely return a slice layout with customized sorting")
-        void getAllDevices_ValidParams_ShouldReturnSlicedData() throws Exception {
-            // Arrange
+        void returnsAllDevicesSlice() throws Exception {
             var pageRequest = PageRequest.of(0, 50, Sort.by("creationTime").descending());
-            var item = new DeviceResponse(UUID.randomUUID(), "Plotter 9", "Canon", DeviceState.AVAILABLE, 0L, OffsetDateTime.now());
-
-            // SliceImpl is the perfect core implementation object for testing Slice returns
-            var simulatedSlice = new SliceImpl<>(List.of(item), pageRequest, false);
+            var item = response("Plotter 9", "Canon", AVAILABLE);
+            var simulatedSlice = sliceOf(pageRequest, item);
 
             when(deviceService.findAll(eq(pageRequest))).thenReturn(simulatedSlice);
 
-            // Act & Assert
-            mockMvc.perform(get("/api/v1/devices")
-                            .param("page", "0")
-                            .param("size", "50"))
+            getDevices(0, 50)
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content[0].name").value("Plotter 9"))
                     .andExpect(jsonPath("$.content[0].brand").value("Canon"))
-                    .andExpect(jsonPath("$.last").value(true)) // Checks slice metadata parsing
+                    .andExpect(jsonPath("$.last").value(true))
                     .andExpect(jsonPath("$.numberOfElements").value(1));
+        }
+
+        @Test
+        @DisplayName("GET /api/v1/devices - Should return 400 Bad Request when page is negative")
+        void rejectsNegativePage() throws Exception {
+            getDevices(-1, 50)
+                    .andExpect(status().isBadRequest());
+
+            verify(deviceService, never()).findAll(any());
+        }
+
+        @Test
+        @DisplayName("GET /api/v1/devices - Should return 400 Bad Request when size is less than one")
+        void rejectsSizeLessThanOne() throws Exception {
+            getDevices(0, 0)
+                    .andExpect(status().isBadRequest());
+
+            verify(deviceService, never()).findAll(any());
         }
     }
 
@@ -192,15 +202,13 @@ class DeviceControllerTest {
 
         @Test
         @DisplayName("Should return 200 OK and payload when device is found")
-        void getById_ExistingId_ShouldReturnDevice() throws Exception {
-            // Arrange
+        void returnsDeviceById() throws Exception {
             UUID deviceId = UUID.randomUUID();
-            var responseDto = new DeviceResponse(deviceId, "ThinkPad", "Lenovo", DeviceState.AVAILABLE, 0L, OffsetDateTime.now());
+            var responseDto = response(deviceId, "ThinkPad", "Lenovo", AVAILABLE, 0L);
 
-            when(deviceService.findById(deviceId)).thenReturn(responseDto);
+            when(deviceService.findByExternalId(deviceId)).thenReturn(responseDto);
 
-            // Act & Assert
-            mockMvc.perform(get("/api/v1/devices/{id}", deviceId))
+            getDevice(deviceId)
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.id").value(deviceId.toString()))
@@ -211,14 +219,12 @@ class DeviceControllerTest {
 
         @Test
         @DisplayName("Should return 404 Not Found when device does not exist")
-        void getById_NonExistingId_ShouldReturnNotFound() throws Exception {
-            // Arrange
+        void returnsNotFoundForMissingDevice() throws Exception {
             UUID missingId = UUID.randomUUID();
-            when(deviceService.findById(missingId))
+            when(deviceService.findByExternalId(missingId))
                     .thenThrow(new DeviceNotFoundException("Device not found with id: " + missingId));
 
-            // Act & Assert
-            mockMvc.perform(get("/api/v1/devices/{id}", missingId))
+            getDevice(missingId)
                     .andExpect(status().isNotFound());
         }
     }
@@ -229,41 +235,34 @@ class DeviceControllerTest {
 
         @Test
         @DisplayName("Should return 200 OK and sliced data using default paging parameters")
-        void getByBrand_DefaultPaging_ShouldReturnSlicedData() throws Exception {
-            // Arrange
+        void returnsDevicesByBrandWithDefaultPaging() throws Exception {
             String brand = "Apple";
-            // Match the default controller values exactly: page 0, size 50, sorted by creationTime DESC
             var pageRequest = PageRequest.of(0, 50, Sort.by("creationTime").descending());
-            var device = new DeviceResponse(UUID.randomUUID(), "MacBook Pro", brand, DeviceState.AVAILABLE, 1L, OffsetDateTime.now());
-            var simulatedSlice = new SliceImpl<>(List.of(device), pageRequest, false);
+            var device = response("MacBook Pro", brand, AVAILABLE, 1L);
+            var simulatedSlice = sliceOf(pageRequest, device);
 
             when(deviceService.findByBrand(brand, pageRequest)).thenReturn(simulatedSlice);
 
-            // Act & Assert
-            mockMvc.perform(get("/api/v1/devices/brand/{brand}", brand))
+            getDevicesByBrand(brand)
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.content[0].brand").value(brand))
                     .andExpect(jsonPath("$.content[0].name").value("MacBook Pro"))
                     .andExpect(jsonPath("$.size").value(50))
-                    .andExpect(jsonPath("$.number").value(0)) // Current page index
+                    .andExpect(jsonPath("$.number").value(0))
                     .andExpect(jsonPath("$.numberOfElements").value(1));
         }
 
         @Test
         @DisplayName("Should accept custom pagination query parameters")
-        void getByBrand_CustomPaging_ShouldPassCorrectPageableToService() throws Exception {
-            // Arrange
+        void passesCustomPagingForBrand() throws Exception {
             String brand = "Apple";
             var customPageRequest = PageRequest.of(2, 20, Sort.by("creationTime").descending());
             var simulatedSlice = new SliceImpl<DeviceResponse>(List.of(), customPageRequest, false);
 
             when(deviceService.findByBrand(brand, customPageRequest)).thenReturn(simulatedSlice);
 
-            // Act & Assert
-            mockMvc.perform(get("/api/v1/devices/brand/{brand}", brand)
-                            .param("page", "2")
-                            .param("size", "20"))
+            getDevicesByBrand(brand, 2, 20)
                     .andExpect(status().isOk());
 
             verify(deviceService, times(1)).findByBrand(brand, customPageRequest);
@@ -276,17 +275,15 @@ class DeviceControllerTest {
 
         @Test
         @DisplayName("Should return 200 OK and filtered payload for valid enum state")
-        void getByState_ValidState_ShouldReturnSlicedData() throws Exception {
-            // Arrange
-            DeviceState state = DeviceState.IN_USE;
+        void returnsDevicesByState() throws Exception {
+            DeviceState state = IN_USE;
             var pageRequest = PageRequest.of(0, 50, Sort.by("creationTime").descending());
-            var device = new DeviceResponse(UUID.randomUUID(), "iPhone 15", "Apple", state, 3L, OffsetDateTime.now());
-            var simulatedSlice = new SliceImpl<>(List.of(device), pageRequest, false);
+            var device = response("iPhone 15", "Apple", state, 3L);
+            var simulatedSlice = sliceOf(pageRequest, device);
 
             when(deviceService.findByState(state, pageRequest)).thenReturn(simulatedSlice);
 
-            // Act & Assert
-            mockMvc.perform(get("/api/v1/devices/state/{state}", state))
+            getDevicesByState(state)
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.content[0].state").value("IN_USE"))
@@ -295,12 +292,83 @@ class DeviceControllerTest {
 
         @Test
         @DisplayName("Should return 400 Bad Request when path string cannot be converted to DeviceState enum")
-        void getByState_InvalidStateEnum_ShouldReturnBadRequest() throws Exception {
-            // Act & Assert - Passing a garbage string that isn't a valid enum constant
-            mockMvc.perform(get("/api/v1/devices/state/{state}", "NOT_A_VALID_STATE"))
+        void rejectsInvalidState() throws Exception {
+            getDevicesByState("NOT_A_VALID_STATE")
                     .andExpect(status().isBadRequest());
 
             verify(deviceService, never()).findByState(any(), any());
         }
+    }
+
+    private ResultActions postDevice(DeviceCreateRequest request) throws Exception {
+        return mockMvc.perform(post("/api/v1/devices")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+    }
+
+    private ResultActions patchDevice(UUID id, DevicePatchRequest request) throws Exception {
+        return patchDevice(id, objectMapper.writeValueAsString(request));
+    }
+
+    private ResultActions patchDevice(UUID id, String jsonRequest) throws Exception {
+        return mockMvc.perform(patch("/api/v1/devices/{id}", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonRequest));
+    }
+
+    private ResultActions deleteDevice(UUID id) throws Exception {
+        return mockMvc.perform(delete("/api/v1/devices/{id}", id));
+    }
+
+    private ResultActions getDevice(UUID id) throws Exception {
+        return mockMvc.perform(get("/api/v1/devices/{id}", id));
+    }
+
+    private ResultActions getDevices(int page, int size) throws Exception {
+        return mockMvc.perform(get("/api/v1/devices")
+                .param("page", String.valueOf(page))
+                .param("size", String.valueOf(size)));
+    }
+
+    private ResultActions getDevicesByBrand(String brand) throws Exception {
+        return mockMvc.perform(get("/api/v1/devices/brand/{brand}", brand));
+    }
+
+    private ResultActions getDevicesByBrand(String brand, int page, int size) throws Exception {
+        return mockMvc.perform(get("/api/v1/devices/brand/{brand}", brand)
+                .param("page", String.valueOf(page))
+                .param("size", String.valueOf(size)));
+    }
+
+    private ResultActions getDevicesByState(DeviceState state) throws Exception {
+        return getDevicesByState(state.name());
+    }
+
+    private ResultActions getDevicesByState(String state) throws Exception {
+        return mockMvc.perform(get("/api/v1/devices/state/{state}", state));
+    }
+
+    private DeviceCreateRequest createRequest(String name, String brand, DeviceState state) {
+        return new DeviceCreateRequest(name, brand, state);
+    }
+
+    private DevicePatchRequest patchRequest(String name, String brand, DeviceState state, long version) {
+        return new DevicePatchRequest(name, brand, state, version);
+    }
+
+    private DeviceResponse response(String name, String brand, DeviceState state) {
+        return response(UUID.randomUUID(), name, brand, state, 0L);
+    }
+
+    private DeviceResponse response(String name, String brand, DeviceState state, long version) {
+        return response(UUID.randomUUID(), name, brand, state, version);
+    }
+
+    private DeviceResponse response(UUID id, String name, String brand, DeviceState state, long version) {
+        return new DeviceResponse(id, name, brand, state, version, OffsetDateTime.now());
+    }
+
+    private SliceImpl<DeviceResponse> sliceOf(PageRequest pageRequest, DeviceResponse item) {
+        return new SliceImpl<>(List.of(item), pageRequest, false);
     }
 }

@@ -1,6 +1,6 @@
 # Device Management Service
 
-A high-performance Spring Boot production service designed to track and manage corporate hardware assets (Devices). The system enforces domain-driven encapsulation rules, data-layer safety via PostgreSQL custom types/triggers, and client-side resiliency with an idempotent retry mechanism.
+A Spring Boot service for managing corporate hardware assets, featuring domain-driven business rules, PostgreSQL data integrity, and idempotent API updates
 
 ---
 
@@ -9,7 +9,7 @@ A high-performance Spring Boot production service designed to track and manage c
 Tasked with developing a REST API capable of persisting and managing device resources.
 
 ### Device Domain
-* **ID:** Unique identifier (UUID).
+* **ID:** Unique identifier.
 * **Name:** Device name.
 * **Brand:** Device manufacturer/brand.
 * **State:** `AVAILABLE`, `IN_USE`, `INACTIVE`.

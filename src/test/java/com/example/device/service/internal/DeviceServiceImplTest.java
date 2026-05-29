@@ -42,7 +42,7 @@ class DeviceServiceImplTest {
     private DeviceRepository deviceRepository;
     @InjectMocks
     private DeviceServiceImpl deviceService;
-    private DeviceMapper deviceMapper= Mappers.getMapper(DeviceMapper.class);
+    private final DeviceMapper deviceMapper= Mappers.getMapper(DeviceMapper.class);
 
     @BeforeEach
     void setUp() {

@@ -78,7 +78,7 @@ class DeviceApplicationIT {
         assertThatThrownBy(() -> postDevice(invalidRequest))
                 .isInstanceOf(HttpClientErrorException.BadRequest.class)
                 .hasMessageContaining("""
-                        "status":400,"error":"Bad Request","path":"/api/v1/devices"}" """);
+                        "status":400,"error":"Bad Request","path":"/api/v1/devices"}\"""");
     }
 
     @Test
@@ -90,7 +90,7 @@ class DeviceApplicationIT {
         assertThatThrownBy(() -> patchDevice(device.id(), patchName("Hacked Name", inUseDevice.version())))
                 .isInstanceOf(HttpClientErrorException.class)
                 .hasMessageStartingWith("""
-                                422 : "{"detail":"Device 'name' or 'brand' cannot be updated while the device is in use.","instance":"/api/v1/devices/%s","status":422,"title":"Business rule violation occurred" """,
+                                422 : "{"detail":"Device 'name' or 'brand' cannot be updated while the device is in use.","instance":"/api/v1/devices/%s","status":422,"title":"Business rule violation occurred\"""",
                         device.id());
     }
 
@@ -121,7 +121,7 @@ class DeviceApplicationIT {
         assertThatThrownBy(() -> patchDevice(initialDevice.id(), patchState(INACTIVE, initialDevice.version())))
                 .isInstanceOf(HttpClientErrorException.class)
                 .hasMessageStartingWith("""
-                                409 : "{"detail":"The device resource you are trying to update has been modified by another concurrent transaction or retry context.","instance":"/api/v1/devices/%s","status":409,"title":"Concurrent Modification Conflict" """,
+                                409 : "{"detail":"The device resource you are trying to update has been modified by another concurrent transaction or retry context.","instance":"/api/v1/devices/%s","status":409,"title":"Concurrent Modification Conflict\"""",
                         initialDevice.id());
     }
 

@@ -17,14 +17,14 @@ CREATE TABLE IF NOT EXISTS devices
     version       BIGINT       NOT NULL    DEFAULT 0,
     creation_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT uq_devices_external_id UNIQUE (external_id)
-                                );
+);
 
 -- 3. Manage Search Indexes
 DROP INDEX IF EXISTS idx_devices_brand_creation_time;
-CREATE INDEX idx_devices_brand_creation_time ON devices (brand, creation_time);
+CREATE INDEX idx_devices_brand_creation_time ON devices (brand, creation_time DESC);
 
 DROP INDEX IF EXISTS idx_devices_state_creation_time;
-CREATE INDEX idx_devices_state_creation_time ON devices (state, creation_time);
+CREATE INDEX idx_devices_state_creation_time ON devices (state, creation_time DESC);
 
 DROP INDEX IF EXISTS idx_devices_creation_time;
 CREATE INDEX idx_devices_creation_time ON devices (creation_time DESC);

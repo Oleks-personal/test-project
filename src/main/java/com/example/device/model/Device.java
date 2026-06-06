@@ -1,8 +1,8 @@
 package com.example.device.model;
 
 import com.example.device.errors.BusinessRuleViolationException;
-import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.*;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
 

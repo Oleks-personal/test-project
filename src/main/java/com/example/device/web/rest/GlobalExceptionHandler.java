@@ -5,7 +5,6 @@ import com.example.device.errors.DeviceNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -19,19 +18,6 @@ import java.time.Instant;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException ex) {
-        LOG.error("Database integrity violation: {}", ex.getMessage(), ex);
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.BAD_REQUEST,
-                "Request data violates persistence constraints."
-        );
-        problemDetail.setTitle("Database integrity violation occurred");
-        problemDetail.setProperty("timestamp", Instant.now());
-
-        return problemDetail;
-    }
 
     @ExceptionHandler(DeviceNotFoundException.class)
     public ProblemDetail handleDeviceNotFound(DeviceNotFoundException ex) {
@@ -79,7 +65,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidationException(MethodArgumentNotValidException ex) {
-        LOG.error("Validation error occurred: {}", ex.getMessage(), ex);
+        LOG.warn("Validation error occurred: {}", ex.getMessage());
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST,
                 "Validation error occurred."
@@ -92,7 +78,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ProblemDetail handleTypeMismatchException(MethodArgumentTypeMismatchException ex) {
-        LOG.error("Type mismatch error occurred: {}", ex.getMessage(), ex);
+        LOG.warn("Type mismatch error occurred: {}", ex.getMessage());
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST,
                 "Type mismatch error occurred."

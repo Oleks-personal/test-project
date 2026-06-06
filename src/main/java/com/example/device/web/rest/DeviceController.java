@@ -70,7 +70,6 @@ public class DeviceController {
         DeviceResponse createdDevice = deviceService.createDevice(createRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdDevice);
     }
-    //version is required
 
     @DeleteMapping("/{id}")
     @Operation(
@@ -96,7 +95,7 @@ public class DeviceController {
                     @ApiResponse(responseCode = "404", description = "Device not found with the provided UUID")
             }
     )
-    public ResponseEntity<DeviceResponse> getById(@PathVariable UUID id) {
+    public ResponseEntity<DeviceResponse> getByExternalId(@PathVariable UUID id) {
         return ResponseEntity.ok(deviceService.findByExternalId(id));
     }
 
@@ -106,7 +105,7 @@ public class DeviceController {
             summary = "Get devices filtered by Brand",
             description = "Returns a continuous fast scroll data Slice of devices belonging to a target brand string matching creation timestamps descending.",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Devices founded, return devices"),
+                    @ApiResponse(responseCode = "200", description = "Devices found, return devices"),
                     @ApiResponse(responseCode = "400", description = "Validation error occurred.")
             }
     )
@@ -123,7 +122,7 @@ public class DeviceController {
             summary = "Get devices filtered by State",
             description = "Returns a high-speed slice view layout containing all active elements matching the defined enum state criteria.",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Devices founded, return devices"),
+                    @ApiResponse(responseCode = "200", description = "Devices found, return devices"),
                     @ApiResponse(responseCode = "400", description = "Validation error occurred."),
             }
     )
@@ -140,7 +139,7 @@ public class DeviceController {
             summary = "Fetch all system devices",
             description = "Returns a master global slice lookup of all logged system devices sorted chronologically by default.",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Devices founded, return devices"),
+                    @ApiResponse(responseCode = "200", description = "Devices found, return devices"),
                     @ApiResponse(responseCode = "400", description = "Validation error occurred.")
             }
     )

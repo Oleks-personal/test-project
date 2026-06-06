@@ -9,6 +9,7 @@ import com.example.device.service.dto.DeviceCreateRequest;
 import com.example.device.service.dto.DevicePatchRequest;
 import com.example.device.service.dto.DeviceResponse;
 import com.example.device.service.dto.mapper.DeviceMapper;
+import jakarta.persistence.EntityManager;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,13 +41,15 @@ import static org.mockito.Mockito.*;
 class DeviceServiceImplTest {
     @Mock
     private DeviceRepository deviceRepository;
+    @Mock
+    private EntityManager entityManager;
     @InjectMocks
     private DeviceServiceImpl deviceService;
     private final DeviceMapper deviceMapper= Mappers.getMapper(DeviceMapper.class);
 
     @BeforeEach
     void setUp() {
-        deviceService = new DeviceServiceImpl(deviceRepository, deviceMapper);
+        deviceService = new DeviceServiceImpl(deviceRepository, deviceMapper, entityManager);
     }
 
     @Test
@@ -58,13 +61,12 @@ class DeviceServiceImplTest {
         DeviceResponse expectedDeviceResponse = response(device);
 
         when(deviceRepository.saveAndFlush(argThat(new DeviceMatcher(device)))).thenReturn(device);
-        when(deviceRepository.findByExternalId(eq(deviceId))).thenReturn(Optional.of(device));
 
         DeviceResponse deviceResponse = deviceService.createDevice(request);
         assertEquals(expectedDeviceResponse, deviceResponse);
 
         verify(deviceRepository, times(1)).saveAndFlush(any(Device.class));
-        verify(deviceRepository, times(1)).findByExternalId(eq(deviceId));
+        verify(entityManager, times(1)).refresh(argThat(new DeviceMatcher(device)));
     }
 
     @Test
@@ -73,7 +75,7 @@ class DeviceServiceImplTest {
 
         assertThrows(BusinessRuleViolationException.class, () -> deviceService.createDevice(request));
 
-        verify(deviceRepository, never()).save(any(Device.class));
+        verify(deviceRepository, never()).saveAndFlush(any(Device.class));
     }
 
     @Test
@@ -101,7 +103,6 @@ class DeviceServiceImplTest {
 
         givenDeviceExists(deviceId, existingDevice);
         when(deviceRepository.saveAndFlush(argThat(new DeviceMatcher(updatingDevice)))).thenAnswer(invocation -> invocation.getArgument(0));
-        givenDeviceExists(deviceId, updatingDevice);
 
         DeviceResponse result = deviceService.updateDevice(deviceId, request);
 
@@ -112,7 +113,9 @@ class DeviceServiceImplTest {
         assertEquals(DeviceState.IN_USE, result.state());
 
         verify(deviceRepository, times(1)).saveAndFlush(existingDevice);
-        verify(deviceRepository, times(2)).findByExternalId(deviceId);
+        verify(deviceRepository, times(1)).findByExternalId(deviceId);
+        verify(entityManager, times(1)).refresh(argThat(new DeviceMatcher(updatingDevice)));
+
     }
 
     @Test
@@ -149,7 +152,7 @@ class DeviceServiceImplTest {
 
         assertThrows(DeviceNotFoundException.class, () -> deviceService.updateDevice(deviceId, request));
 
-        verify(deviceRepository, never()).save(any(Device.class));
+        verify(deviceRepository, never()).saveAndFlush(any(Device.class));
     }
 
     @Test
@@ -166,7 +169,7 @@ class DeviceServiceImplTest {
         BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> deviceService.updateDevice(deviceId, request));
 
         assertEquals("Device 'name' or 'brand' cannot be updated while the device is in use.", exception.getMessage());
-        verify(deviceRepository, never()).save(any(Device.class));
+        verify(deviceRepository, never()).saveAndFlush(any(Device.class));
     }
 
     @Test
@@ -182,7 +185,7 @@ class DeviceServiceImplTest {
         BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> deviceService.updateDevice(deviceId, request));
 
         assertEquals("Device 'name' or 'brand' cannot be updated while the device is in use.", exception.getMessage());
-        verify(deviceRepository, never()).save(any(Device.class));
+        verify(deviceRepository, never()).saveAndFlush(any(Device.class));
     }
 
     @Test
@@ -204,7 +207,7 @@ class DeviceServiceImplTest {
         assertEquals(databaseVersion, result.version());
         assertEquals("Current Name", result.name()); // Verifies the domain state was untouched
 
-        verify(deviceRepository, never()).save(any(Device.class));
+        verify(deviceRepository, never()).saveAndFlush(any(Device.class));
     }
 
     @Test
@@ -223,7 +226,7 @@ class DeviceServiceImplTest {
         OptimisticLockingFailureException exception = assertThrows(OptimisticLockingFailureException.class, () -> deviceService.updateDevice(deviceId, request));
         assertEquals("Object of class [com.example.device.model.Device] with identifier [" + deviceId + "]: optimistic locking failed", exception.getMessage());
 
-        verify(deviceRepository, never()).save(any(Device.class));
+        verify(deviceRepository, never()).saveAndFlush(any(Device.class));
     }
 
     @Test
@@ -242,7 +245,7 @@ class DeviceServiceImplTest {
         OptimisticLockingFailureException exception = assertThrows(OptimisticLockingFailureException.class, () -> deviceService.updateDevice(deviceId, request));
         assertEquals("Object of class [com.example.device.model.Device] with identifier [" + deviceId + "]: optimistic locking failed", exception.getMessage());
 
-        verify(deviceRepository, never()).save(any(Device.class));
+        verify(deviceRepository, never()).saveAndFlush(any(Device.class));
     }
 
     @Test
@@ -282,7 +285,7 @@ class DeviceServiceImplTest {
 
         assertEquals("Cannot delete device because it is currently in use.", exception.getMessage());
 
-        verify(deviceRepository, never()).deleteById(anyLong());
+        verify(deviceRepository, never()).delete(argThat(new DeviceMatcher(existingDevice)));
     }
 
     @Test

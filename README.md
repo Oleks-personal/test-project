@@ -30,10 +30,10 @@ Tasked with developing a REST API capable of persisting and managing device reso
 * **IN_USE** devices cannot be deleted.
 
 ## Acceptance Criteria
-* The applica:on should compile and run successfully.
-* The applica:on must contain a reasonable test coverage.
+* The application should compile and run successfully.
+* The application must contain a reasonable test coverage.
 * The API must be documented.
-* The application must be capable of persis:ng resources on a database of your choice, excluding in-memory.
+* The application must be capable of persisting resources on a database of your choice, excluding in-memory.
 * The application must be containerized.
 * The project must be delivered as a git repository.
 * The project includes a README file with all project related/necessary documentation/instructions.
@@ -51,7 +51,7 @@ Unlike classic anemic models, the `Device` entity owns its integrity. State chan
 ### 2. Concurrency & Network Idempotency
 To maximize database throughput under distributed architectures, this service utilizes **Pure Optimistic Locking** (`@Version`).
 
-Additionally, the `PATCH` endpoint features an **Idempotent Retry Defense Filter**. If a network failure prevents a client from receiving a successful `200 OK` modification confirmation, subsequent client retries utilizing a stale version token are checked against the active payload data:
+Additionally, the `PATCH` endpoint features an **Idempotent Retry Defense Filter**. If a network failure prevents a client from receiving a successful `200 OK` modification confirmation, subsequent client retries utilizing a stale version token are checked against the active payload data:   
 * **Identical State Retry:** If the data matches the current database state perfectly, the service short-circuits gracefully and returns `200 OK`.
 * **True Mid-Air Collision:** If the payload differs, an `ObjectOptimisticLockingFailureException` is triggered, mapping directly to an **HTTP 409 Conflict**.
 

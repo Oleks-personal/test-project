@@ -43,12 +43,12 @@ class DeviceServiceImpl implements DeviceService {
         Device newDevice = deviceMapper.deviceCreateRequestToDevice(deviceCreateRequest);
         Device device;
         try {
-            device = deviceRepository.save(newDevice);
+            device = deviceRepository.saveAndFlush(newDevice);
         } catch (DataIntegrityViolationException e) {
             LOG.error("Failed to create device: {}", DEVICE_DATA_INTEGRITY_MESSAGE, e);
             throw new BusinessRuleViolationException(DEVICE_DATA_INTEGRITY_MESSAGE, e);
         }
-        return transformToDto(device);
+        return transformToDto(deviceRepository.findByExternalId(device.getExternalId()).orElseThrow());
     }
 
     @Override
@@ -77,7 +77,7 @@ class DeviceServiceImpl implements DeviceService {
             LOG.error("Failed to update device {}: {}", id, DEVICE_DATA_INTEGRITY_MESSAGE, e);
             throw new BusinessRuleViolationException(DEVICE_DATA_INTEGRITY_MESSAGE, e);
         }
-        return transformToDto(device);
+        return transformToDto(deviceRepository.findByExternalId(device.getExternalId()).orElseThrow());
     }
 
     @Override

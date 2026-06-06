@@ -133,7 +133,7 @@ class DeviceControllerTest {
     class DeleteDeviceTests {
 
         @Test
-        @DisplayName("Should return 244 No Content on successful removal")
+        @DisplayName("Should return 204 No Content on successful removal")
         void deletesDevice() throws Exception {
             UUID deviceId = UUID.randomUUID();
             doNothing().when(deviceService).deleteDevice(deviceId);
@@ -145,7 +145,7 @@ class DeviceControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 409 Conflict when business rules block deletion")
+        @DisplayName("Should return 422 Unprocessable Content when business rules block deletion")
         void rejectsDeletingInUseDevice() throws Exception {
             UUID activeDeviceId = UUID.randomUUID();
             doThrow(new BusinessRuleViolationException("Cannot delete device because it is currently in use."))

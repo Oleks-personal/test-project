@@ -14,9 +14,9 @@ import java.util.UUID;
 @Table(
         name = "devices",
         indexes = {
-                @Index(name = "idx_devices_brand", columnList = "brand"),
+                @Index(name = "idx_devices_brand_creation_time", columnList = "brand,creation_time"),
                 @Index(name = "idx_devices_external_id", columnList = "external_id"),
-                @Index(name = "idx_devices_state", columnList = "state"),
+                @Index(name = "idx_devices_state_creation_time", columnList = "state,creation_time"),
                 @Index(name = "idx_devices_creation_time", columnList = "creation_time")
         }
 )

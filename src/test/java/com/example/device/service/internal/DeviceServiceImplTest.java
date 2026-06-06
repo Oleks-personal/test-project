@@ -57,12 +57,14 @@ class DeviceServiceImplTest {
         DeviceCreateRequest request = createRequest("New Name", "New Brand", IN_USE);
         DeviceResponse expectedDeviceResponse = response(device);
 
-        when(deviceRepository.save(argThat(new DeviceMatcher(device)))).thenReturn(device);
+        when(deviceRepository.saveAndFlush(argThat(new DeviceMatcher(device)))).thenReturn(device);
+        when(deviceRepository.findByExternalId(eq(deviceId))).thenReturn(Optional.of(device));
 
         DeviceResponse deviceResponse = deviceService.createDevice(request);
         assertEquals(expectedDeviceResponse, deviceResponse);
 
-        verify(deviceRepository, times(1)).save(any(Device.class));
+        verify(deviceRepository, times(1)).saveAndFlush(any(Device.class));
+        verify(deviceRepository, times(1)).findByExternalId(eq(deviceId));
     }
 
     @Test
@@ -79,7 +81,7 @@ class DeviceServiceImplTest {
         DeviceCreateRequest request = createRequest("New Name", "New Brand", IN_USE);
         DataIntegrityViolationException repositoryException = new DataIntegrityViolationException("duplicate key value violates unique constraint");
 
-        when(deviceRepository.save(any(Device.class))).thenThrow(repositoryException);
+        when(deviceRepository.saveAndFlush(any(Device.class))).thenThrow(repositoryException);
 
         BusinessRuleViolationException exception = assertThrows(BusinessRuleViolationException.class, () -> deviceService.createDevice(request));
 
@@ -99,6 +101,7 @@ class DeviceServiceImplTest {
 
         givenDeviceExists(deviceId, existingDevice);
         when(deviceRepository.saveAndFlush(argThat(new DeviceMatcher(updatingDevice)))).thenAnswer(invocation -> invocation.getArgument(0));
+        givenDeviceExists(deviceId, updatingDevice);
 
         DeviceResponse result = deviceService.updateDevice(deviceId, request);
 
@@ -109,6 +112,7 @@ class DeviceServiceImplTest {
         assertEquals(DeviceState.IN_USE, result.state());
 
         verify(deviceRepository, times(1)).saveAndFlush(existingDevice);
+        verify(deviceRepository, times(2)).findByExternalId(deviceId);
     }
 
     @Test

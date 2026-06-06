@@ -34,10 +34,30 @@ public class DeviceController {
         this.deviceService = deviceService;
     }
 
+    @PatchMapping("/{id}")
+    @Operation(
+            summary = "Partially update an existing device",
+            description = "Updates specific properties of an existing device. Throws a validation block if attempting to change name or brand while state is IN_USE.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Device updated successfully"),
+                    @ApiResponse(responseCode = "400", description = "Validation error occurred."),
+                    @ApiResponse(responseCode = "404", description = "Device not found with the provided UUID"),
+                    @ApiResponse(responseCode = "409", description = "The device resource you are trying to update has been modified by another concurrent transaction or retry context."),
+                    @ApiResponse(responseCode = "422", description = "Business rule violation error triggered (e.g., modifying active asset properties)")
+            }
+    )
+    public ResponseEntity<DeviceResponse> updateDevice(
+            @PathVariable @Parameter(description = "Unique identifier of the target device") UUID id,
+            @RequestBody @Valid DevicePatchRequest updateRequest) {
+
+        DeviceResponse updatedDevice = deviceService.updateDevice(id, updateRequest);
+        return ResponseEntity.ok(updatedDevice);
+    }
+
     @PostMapping
     @Operation(
             summary = "Create a new device",
-            description = "Registers a brand new device entity into the catalog. Initial state defaults to AVAILABLE if not specified.",
+            description = "Registers a brand new device entity into the catalog. Initial state defaults to INACTIVE if not specified.",
             responses = {
                     @ApiResponse(responseCode = "201", description = "Device created successfully",
                             content = @Content(schema = @Schema(implementation = DeviceResponse.class))),
@@ -50,25 +70,7 @@ public class DeviceController {
         DeviceResponse createdDevice = deviceService.createDevice(createRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdDevice);
     }
-
     //version is required
-    @PatchMapping("/{id}")
-    @Operation(
-            summary = "Partially update an existing device",
-            description = "Updates specific properties of an existing device. Throws a validation block if attempting to change name or brand while state is IN_USE.",
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "Device updated successfully"),
-                    @ApiResponse(responseCode = "404", description = "Device not found with the provided UUID"),
-                    @ApiResponse(responseCode = "422", description = "Business rule violation error triggered (e.g., modifying active asset properties)")
-            }
-    )
-    public ResponseEntity<DeviceResponse> updateDevice(
-            @PathVariable @Parameter(description = "Unique identifier of the target device") UUID id,
-            @RequestBody @Valid DevicePatchRequest updateRequest) {
-
-        DeviceResponse updatedDevice = deviceService.updateDevice(id, updateRequest);
-        return ResponseEntity.ok(updatedDevice);
-    }
 
     @DeleteMapping("/{id}")
     @Operation(
@@ -76,6 +78,7 @@ public class DeviceController {
             description = "Removes a device permanently from storage. Only devices that are NOT in an 'IN_USE' status state can be safely purged.",
             responses = {
                     @ApiResponse(responseCode = "204", description = "Device removed successfully"),
+                    @ApiResponse(responseCode = "404", description = "Device not found with the provided UUID"),
                     @ApiResponse(responseCode = "422", description = "Cannot delete a device that is currently marked as IN_USE")
             }
     )
@@ -103,7 +106,8 @@ public class DeviceController {
             summary = "Get devices filtered by Brand",
             description = "Returns a continuous fast scroll data Slice of devices belonging to a target brand string matching creation timestamps descending.",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Devices founded, return devices")
+                    @ApiResponse(responseCode = "200", description = "Devices founded, return devices"),
+                    @ApiResponse(responseCode = "400", description = "Validation error occurred.")
             }
     )
     public ResponseEntity<Slice<DeviceResponse>> getByBrand(
@@ -119,7 +123,8 @@ public class DeviceController {
             summary = "Get devices filtered by State",
             description = "Returns a high-speed slice view layout containing all active elements matching the defined enum state criteria.",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Devices founded, return devices")
+                    @ApiResponse(responseCode = "200", description = "Devices founded, return devices"),
+                    @ApiResponse(responseCode = "400", description = "Validation error occurred."),
             }
     )
     public ResponseEntity<Slice<DeviceResponse>> getByState(
@@ -135,7 +140,8 @@ public class DeviceController {
             summary = "Fetch all system devices",
             description = "Returns a master global slice lookup of all logged system devices sorted chronologically by default.",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Devices founded, return devices")
+                    @ApiResponse(responseCode = "200", description = "Devices founded, return devices"),
+                    @ApiResponse(responseCode = "400", description = "Validation error occurred.")
             }
     )
     public ResponseEntity<Slice<DeviceResponse>> getAllDevices(

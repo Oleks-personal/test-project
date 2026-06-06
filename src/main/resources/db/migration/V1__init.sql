@@ -20,14 +20,14 @@ CREATE TABLE IF NOT EXISTS devices
                                 );
 
 -- 3. Manage Search Indexes
-DROP INDEX IF EXISTS idx_devices_brand;
-CREATE INDEX idx_devices_brand ON devices (brand);
+DROP INDEX IF EXISTS idx_devices_brand_creation_time;
+CREATE INDEX idx_devices_brand_creation_time ON devices (brand, creation_time);
 
-DROP INDEX IF EXISTS idx_devices_external_id;
-CREATE INDEX idx_devices_external_id ON devices (external_id);
+DROP INDEX IF EXISTS idx_devices_state_creation_time;
+CREATE INDEX idx_devices_state_creation_time ON devices (state, creation_time);
 
-DROP INDEX IF EXISTS idx_devices_state;
-CREATE INDEX idx_devices_state ON devices (state);
+DROP INDEX IF EXISTS idx_devices_creation_time;
+CREATE INDEX idx_devices_creation_time ON devices (creation_time DESC);
 
 -- 4. Function to enforce UPDATE constraints
 CREATE OR REPLACE FUNCTION enforce_device_update_restrictions()

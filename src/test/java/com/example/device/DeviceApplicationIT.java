@@ -26,7 +26,7 @@ import static com.example.device.model.DeviceState.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class DeviceApplicationIT {
 
@@ -78,7 +78,7 @@ class DeviceApplicationIT {
         assertThatThrownBy(() -> postDevice(invalidRequest))
                 .isInstanceOf(HttpClientErrorException.BadRequest.class)
                 .hasMessageContaining("""
-                        "status":400,"error":"Bad Request","path":"/api/v1/devices"}\"""");
+                        "status":400,"title":"Validation error\"""");
     }
 
     @Test

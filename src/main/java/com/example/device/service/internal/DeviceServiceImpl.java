@@ -11,7 +11,6 @@ import com.example.device.service.dto.DevicePatchRequest;
 import com.example.device.service.dto.DeviceResponse;
 import com.example.device.service.dto.mapper.DeviceMapper;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -34,7 +33,6 @@ class DeviceServiceImpl implements DeviceService {
 
     private final DeviceRepository deviceRepository;
     private final DeviceMapper deviceMapper;
-    @PersistenceContext
     private final EntityManager entityManager;
 
     DeviceServiceImpl(DeviceRepository deviceRepository, DeviceMapper deviceMapper, EntityManager entityManager) {
@@ -97,7 +95,12 @@ class DeviceServiceImpl implements DeviceService {
             throw new BusinessRuleViolationException("Cannot delete device because it is currently in use.");
         }
 
-        deviceRepository.delete(device);
+        try {
+            deviceRepository.delete(device);
+        } catch (DataIntegrityViolationException e) {
+            LOG.error("Failed to delete device {}: {}", id, DEVICE_DATA_INTEGRITY_MESSAGE, e);
+            throw new BusinessRuleViolationException(DEVICE_DATA_INTEGRITY_MESSAGE, e);
+        }
     }
 
     @Transactional(readOnly = true)

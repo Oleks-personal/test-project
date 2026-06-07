@@ -21,7 +21,8 @@ import java.util.UUID;
         }
 )
 public class Device {
-
+    
+    @SuppressWarnings("unused")
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -46,6 +47,7 @@ public class Device {
     @Column(nullable = false, columnDefinition = "device_state")
     private DeviceState state = DeviceState.INACTIVE;
 
+    @SuppressWarnings("unused")
     @Column(
             name = "creation_time",
             nullable = false,
@@ -55,6 +57,7 @@ public class Device {
     )
     private OffsetDateTime creationTime;
 
+    @SuppressWarnings("unused")
     @Version
     @Column(name = "version", nullable = false)
     private Long version;

@@ -73,7 +73,16 @@ Schema evolution is driven by **Flyway**. The database engine enforces data stru
 
 ## 🚀 Local Development Setup
 
-### 1. Build and Test
+### 1. Environment Configuration
+The project uses environment variables for database configuration. A template file `.env.example` is provided.
+
+1. Create a `.env` file from the template:
+   ```bash
+   cp .env.example .env
+   ```
+2. Update the `.env` file with your database credentials. The `.env` file is ignored by Git to keep your secrets secure.
+
+### 2. Build and Test
 To build the project and execute unit and integration tests:
 ```bash
 ./gradlew clean test bootJar
@@ -85,7 +94,7 @@ To build the project and execute unit and integration tests:
 
 > **Note:** `DeviceApplicationIT` is an integration test suite that utilizes [Testcontainers](https://docs.spring.io/spring-boot/reference/testing/testcontainers.html) to run a real PostgreSQL instance.
 
-### 2. Run with Docker Compose
+### 3. Run with Docker Compose
 The repository includes a pre-configured `docker-compose.yml` that initializes the database and the application.
 
 ```bash

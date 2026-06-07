@@ -15,13 +15,14 @@ import java.util.UUID;
         name = "devices",
         indexes = {
                 @Index(name = "idx_devices_brand_creation_time", columnList = "brand,creation_time"),
-                @Index(name = "idx_devices_external_id", columnList = "external_id"),
+                @Index(name = "uq_devices_external_id", columnList = "external_id"),
                 @Index(name = "idx_devices_state_creation_time", columnList = "state,creation_time"),
                 @Index(name = "idx_devices_creation_time", columnList = "creation_time")
         }
 )
 public class Device {
-
+    
+    @SuppressWarnings("unused")
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -44,8 +45,9 @@ public class Device {
     @JdbcTypeCode(org.hibernate.type.SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "device_state")
-    private DeviceState state = DeviceState.AVAILABLE;
+    private DeviceState state = DeviceState.INACTIVE;
 
+    @SuppressWarnings("unused")
     @Column(
             name = "creation_time",
             nullable = false,
@@ -55,6 +57,7 @@ public class Device {
     )
     private OffsetDateTime creationTime;
 
+    @SuppressWarnings("unused")
     @Version
     @Column(name = "version", nullable = false)
     private Long version;

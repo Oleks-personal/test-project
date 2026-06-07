@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
@@ -112,8 +113,8 @@ public class DeviceController {
     public ResponseEntity<Slice<DeviceResponse>> getByBrand(
             @PathVariable String brand,
             @RequestParam(defaultValue = "0") @Min(0) @Parameter(description = "Zero-indexed page destination") int page,
-            @RequestParam(defaultValue = "50") @Min(1) @Parameter(description = "Total element layout capacity bounds per slice request slice limit") int size) {
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("creationTime").descending());
+            @RequestParam(defaultValue = "50") @Min(1) @Max(200) @Parameter(description = "Total element layout capacity bounds per slice request slice limit") int size) {
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("creationTime").descending().and(Sort.by("id").descending()));
         return ResponseEntity.ok(deviceService.findByBrand(brand, pageRequest));
     }
 
@@ -129,8 +130,8 @@ public class DeviceController {
     public ResponseEntity<Slice<DeviceResponse>> getByState(
             @PathVariable DeviceState state,
             @RequestParam(defaultValue = "0") @Min(0) @Parameter(description = "Zero-indexed page destination") int page,
-            @RequestParam(defaultValue = "50") @Min(1) @Parameter(description = "Total element layout capacity bounds per slice request slice limit") int size) {
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("creationTime").descending());
+            @RequestParam(defaultValue = "50") @Min(1) @Max(200) @Parameter(description = "Total element layout capacity bounds per slice request slice limit") int size) {
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("creationTime").descending().and(Sort.by("id").descending()));
         return ResponseEntity.ok(deviceService.findByState(state, pageRequest));
     }
 
@@ -145,9 +146,9 @@ public class DeviceController {
     )
     public ResponseEntity<Slice<DeviceResponse>> getAllDevices(
             @RequestParam(defaultValue = "0") @Min(0) @Parameter(description = "Zero-indexed page destination") int page,
-            @RequestParam(defaultValue = "50") @Min(1) @Parameter(description = "Total element layout capacity bounds per slice request slice limit") int size) {
+            @RequestParam(defaultValue = "50") @Min(1) @Max(200) @Parameter(description = "Total element layout capacity bounds per slice request slice limit") int size) {
 
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("creationTime").descending());
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("creationTime").descending().and(Sort.by("id").descending()));
         Slice<DeviceResponse> devicesPage = deviceService.findAll(pageRequest);
 
         return ResponseEntity.ok(devicesPage);

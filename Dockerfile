@@ -11,7 +11,15 @@ RUN chmod +x gradlew && ./gradlew bootJar -x test --no-daemon
 FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /device-project
-COPY --from=build /workspace/build/libs/device-project-*.jar ./device-project.jar
+
+# Create a non-root user and group
+RUN addgroup -S device && adduser -S device -G device
+
+# Copy the jar and change ownership to the non-root user
+COPY --from=build --chown=device:device /workspace/build/libs/device-project-*.jar ./device-project.jar
+
+# Switch to the non-root user
+USER device
 
 EXPOSE 8080
 

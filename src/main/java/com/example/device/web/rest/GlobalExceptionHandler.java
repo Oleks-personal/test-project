@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -19,6 +20,7 @@ import java.time.Instant;
 public class GlobalExceptionHandler {
     private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @SuppressWarnings("unused")
     @ExceptionHandler(DeviceNotFoundException.class)
     public ProblemDetail handleDeviceNotFound(DeviceNotFoundException ex) {
         LOG.info("Device not found: {}", ex.getMessage());
@@ -29,6 +31,7 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @SuppressWarnings("unused")
     @ExceptionHandler(BusinessRuleViolationException.class)
     public ProblemDetail handleBusinessRuleViolation(BusinessRuleViolationException ex) {
         LOG.warn("Business rule violation: {}", ex.getMessage());
@@ -39,16 +42,18 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @SuppressWarnings("unused")
     @ExceptionHandler(ConstraintViolationException.class)
     public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
         LOG.warn("Constraint violation: {}", ex.getMessage());
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Constraint violation occurred");
         problemDetail.setTitle("Request validation failed");
         problemDetail.setProperty("timestamp", Instant.now());
 
         return problemDetail;
     }
 
+    @SuppressWarnings("unused")
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ProblemDetail handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException ex) {
         LOG.warn("Optimistic locking failure: {}", ex.getMessage());
@@ -63,6 +68,7 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @SuppressWarnings("unused")
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidationException(MethodArgumentNotValidException ex) {
         LOG.warn("Validation error occurred: {}", ex.getMessage());
@@ -76,6 +82,7 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @SuppressWarnings("unused")
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ProblemDetail handleTypeMismatchException(MethodArgumentTypeMismatchException ex) {
         LOG.warn("Type mismatch error occurred: {}", ex.getMessage());
@@ -89,6 +96,21 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @SuppressWarnings("unused")
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleGenericException(HttpMessageNotReadableException ex) {
+        LOG.warn("Bad client request.: {}", ex.getMessage(), ex);
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Bad client request."
+        );
+        problemDetail.setTitle("Bad client request");
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
+    @SuppressWarnings("unused")
     @ExceptionHandler(RuntimeException.class)
     public ProblemDetail handleGenericException(RuntimeException ex) {
         LOG.error("An unexpected error occurred: {}", ex.getMessage(), ex);

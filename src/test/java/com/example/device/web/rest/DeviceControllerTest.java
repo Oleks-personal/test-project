@@ -67,12 +67,53 @@ class DeviceControllerTest {
         }
 
         @Test
+        @DisplayName("Should return 500 Server Error if unexpected error happens")
+        void returnServerErrorInCaseOfUnexpectedError() throws Exception {
+            var request = createRequest("Scanner X", "HP", AVAILABLE);
+
+            when(deviceService.createDevice(any(DeviceCreateRequest.class))).thenThrow(IllegalStateException.class);
+
+            postDevice(request)
+                    .andExpect(status().is5xxServerError())
+                    .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.detail").value("An unexpected internal server error occurred. Please contact support."))
+                    .andExpect(jsonPath("$.instance").value("/api/v1/devices"))
+                    .andExpect(jsonPath("$.status").value("500"))
+                    .andExpect(jsonPath("$.title").value("Internal Server Error"));
+        }
+
+        @Test
         @DisplayName("Should return 400 Bad Request when Jakarta constraints fail")
         void rejectsInvalidCreateRequest() throws Exception {
             var invalidRequest = createRequest("", "HP", AVAILABLE);
 
             postDevice(invalidRequest)
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.detail").value("Validation error occurred."))
+                    .andExpect(jsonPath("$.instance").value("/api/v1/devices"))
+                    .andExpect(jsonPath("$.status").value("400"))
+                    .andExpect(jsonPath("$.title").value("Validation error"));
+
+            verify(deviceService, never()).createDevice(any());
+        }
+
+        @Test
+        @DisplayName("Should return 400 Bad Request when JSON is unexpected")
+        void rejectsInvalidJsonInCreateRequest() throws Exception {
+            mockMvc.perform(post("/api/v1/devices")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString("""
+                            { "userId": 10592," +
+                              "username": "someUserName"
+                            }
+                            """)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.detail").value("Bad client request."))
+                    .andExpect(jsonPath("$.instance").value("/api/v1/devices"))
+                    .andExpect(jsonPath("$.status").value("400"))
+                    .andExpect(jsonPath("$.title").value("Bad client request"));
 
             verify(deviceService, never()).createDevice(any());
         }
@@ -124,7 +165,12 @@ class DeviceControllerTest {
                     .thenThrow(new DeviceNotFoundException("Device not found with id: " + missingId));
 
             patchDevice(missingId, updateRequest)
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.detail").value("Device not found with id: " + missingId))
+                    .andExpect(jsonPath("$.instance").value("/api/v1/devices/" + missingId))
+                    .andExpect(jsonPath("$.status").value("404"))
+                    .andExpect(jsonPath("$.title").value("Device not found"));
         }
     }
 
@@ -163,7 +209,7 @@ class DeviceControllerTest {
         @Test
         @DisplayName("GET /api/v1/devices - Should safely return a slice layout with customized sorting")
         void returnsAllDevicesSlice() throws Exception {
-            var pageRequest = PageRequest.of(0, 50, Sort.by("creationTime").descending());
+            var pageRequest = PageRequest.of(0, 50, Sort.by("creationTime").descending().and(Sort.by("id").descending()));
             var item = response("Plotter 9", "Canon", AVAILABLE);
             var simulatedSlice = sliceOf(pageRequest, item);
 
@@ -190,6 +236,15 @@ class DeviceControllerTest {
         @DisplayName("GET /api/v1/devices - Should return 400 Bad Request when size is less than one")
         void rejectsSizeLessThanOne() throws Exception {
             getDevices(0, 0)
+                    .andExpect(status().isBadRequest());
+
+            verify(deviceService, never()).findAll(any());
+        }
+
+        @Test
+        @DisplayName("GET /api/v1/devices - Should return 400 Bad Request when size is more than 200")
+        void rejectsSizeMoreThan200() throws Exception {
+            getDevices(0, 201)
                     .andExpect(status().isBadRequest());
 
             verify(deviceService, never()).findAll(any());
@@ -237,7 +292,7 @@ class DeviceControllerTest {
         @DisplayName("Should return 200 OK and sliced data using default paging parameters")
         void returnsDevicesByBrandWithDefaultPaging() throws Exception {
             String brand = "Apple";
-            var pageRequest = PageRequest.of(0, 50, Sort.by("creationTime").descending());
+            var pageRequest = PageRequest.of(0, 50, Sort.by("creationTime").descending().and(Sort.by("id").descending()));
             var device = response("MacBook Pro", brand, AVAILABLE, 1L);
             var simulatedSlice = sliceOf(pageRequest, device);
 
@@ -257,7 +312,7 @@ class DeviceControllerTest {
         @DisplayName("Should accept custom pagination query parameters")
         void passesCustomPagingForBrand() throws Exception {
             String brand = "Apple";
-            var customPageRequest = PageRequest.of(2, 20, Sort.by("creationTime").descending());
+            var customPageRequest = PageRequest.of(2, 20, Sort.by("creationTime").descending().and(Sort.by("id").descending()));
             var simulatedSlice = new SliceImpl<DeviceResponse>(List.of(), customPageRequest, false);
 
             when(deviceService.findByBrand(brand, customPageRequest)).thenReturn(simulatedSlice);
@@ -277,7 +332,7 @@ class DeviceControllerTest {
         @DisplayName("Should return 200 OK and filtered payload for valid enum state")
         void returnsDevicesByState() throws Exception {
             DeviceState state = IN_USE;
-            var pageRequest = PageRequest.of(0, 50, Sort.by("creationTime").descending());
+            var pageRequest = PageRequest.of(0, 50, Sort.by("creationTime").descending().and(Sort.by("id").descending()));
             var device = response("iPhone 15", "Apple", state, 3L);
             var simulatedSlice = sliceOf(pageRequest, device);
 

@@ -26,7 +26,7 @@ import static com.example.device.model.DeviceState.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@Testcontainers(disabledWithoutDocker = true)
+@Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class DeviceApplicationIT {
 
